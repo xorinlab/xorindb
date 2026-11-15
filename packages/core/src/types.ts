@@ -106,4 +106,5 @@ export interface DatabaseOptions {
   name: string;
   storage?: StorageAdapter;
   multiTab?: boolean;
+  ignoreDuplicate?: boolean; // Default true: returns existing instance if same name already instantiated
 }

@@ -79,10 +79,16 @@ export class Database {
 
 export async function createDatabase(options: DatabaseOptions | string): Promise<Database> {
   const opts: DatabaseOptions = typeof options === 'string' ? { name: options } : options;
+  const ignoreDuplicate = opts.ignoreDuplicate ?? true;
 
   // Singleton cache: Avoid duplicate DB instances / memory leaks on Hot Module Reload (HMR)
   if (DATABASE_CACHE.has(opts.name)) {
-    return DATABASE_CACHE.get(opts.name)!;
+    if (ignoreDuplicate) {
+      return DATABASE_CACHE.get(opts.name)!;
+    }
+    throw new Error(
+      `Database with name "${opts.name}" is already created. Set ignoreDuplicate: true or use db.close() before creating a new one.`
+    );
   }
 
   const db = new Database(opts);
