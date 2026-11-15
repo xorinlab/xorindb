@@ -1,5 +1,6 @@
 import { EventEmitter } from './events/emitter';
 import { Query } from './query/query';
+import { KeyCompressor } from './schema/compression';
 import { MigrationEngine, MigrationStrategies } from './schema/migration';
 import { CollectionSchema, validateDocumentAgainstSchema } from './schema/validator';
 import { SyncEngine } from './sync';
@@ -31,6 +32,7 @@ export class Collection<T extends BaseDocument> {
   private emitter: EventEmitter;
   private schema?: CollectionSchema<T>;
   private migrationStrategies?: MigrationStrategies;
+  private keyCompressor: KeyCompressor<T>;
   private syncEngine: SyncEngine<T> | null = null;
   private migrationPromise: Promise<void> | null = null;
 
@@ -40,6 +42,7 @@ export class Collection<T extends BaseDocument> {
     this.emitter = emitter;
     this.schema = options?.schema;
     this.migrationStrategies = options?.migrationStrategies;
+    this.keyCompressor = new KeyCompressor<T>(this.schema);
 
     // Register single and compound indexes to storage adapter if supported
     if (this.schema?.indexes && 'setIndexes' in this.storage) {
@@ -66,6 +69,10 @@ export class Collection<T extends BaseDocument> {
 
   getSchema(): CollectionSchema<T> | undefined {
     return this.schema;
+  }
+
+  getKeyCompressor(): KeyCompressor<T> {
+    return this.keyCompressor;
   }
 
   getName(): string {
@@ -116,7 +123,12 @@ export class Collection<T extends BaseDocument> {
       _updatedAt: Date.now()
     };
 
-    await this.storage.put(this.name, doc);
+    // Compress keys before persisting to storage if keyCompression is enabled
+    const storageDoc = this.keyCompressor.isCompressionEnabled()
+      ? (this.keyCompressor.compress(doc as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+      : doc;
+
+    await this.storage.put(this.name, storageDoc);
 
     this.emitter.emit(this.name, {
       collection: this.name,
@@ -148,7 +160,11 @@ export class Collection<T extends BaseDocument> {
       };
     });
 
-    await this.storage.putBatch(this.name, prepared);
+    const storageDocs = this.keyCompressor.isCompressionEnabled()
+      ? prepared.map((d) => this.keyCompressor.compress(d as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+      : prepared;
+
+    await this.storage.putBatch(this.name, storageDocs);
 
     for (const doc of prepared) {
       this.emitter.emit(this.name, {
@@ -164,8 +180,13 @@ export class Collection<T extends BaseDocument> {
 
   async findById(id: PrimaryKey): Promise<DocumentWithMeta<T> | null> {
     await this.ensureMigrated();
-    const doc = await this.storage.get<T>(this.name, id);
-    if (!doc || doc._deleted) return null;
+    const raw = await this.storage.get<T>(this.name, id);
+    if (!raw || raw._deleted) return null;
+
+    const doc = this.keyCompressor.isCompressionEnabled()
+      ? (this.keyCompressor.decompress(raw as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+      : raw;
+
     return doc;
   }
 
@@ -189,7 +210,11 @@ export class Collection<T extends BaseDocument> {
       validateDocumentAgainstSchema(updated as Record<string, unknown>, this.schema);
     }
 
-    await this.storage.put(this.name, updated);
+    const storageUpdated = this.keyCompressor.isCompressionEnabled()
+      ? (this.keyCompressor.compress(updated as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+      : updated;
+
+    await this.storage.put(this.name, storageUpdated);
 
     this.emitter.emit(this.name, {
       collection: this.name,

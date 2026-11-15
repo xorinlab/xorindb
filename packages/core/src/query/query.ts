@@ -21,7 +21,13 @@ export class Query<T extends BaseDocument> {
 
   async exec(): Promise<DocumentWithMeta<T>[]> {
     await this.collection.ensureMigrated();
-    const allDocs = await this.collection.getStorage().getAll<T>(this.collection.getName());
+    const rawDocs = await this.collection.getStorage().getAll<T>(this.collection.getName());
+    const compressor = this.collection.getKeyCompressor();
+
+    const allDocs = compressor.isCompressionEnabled()
+      ? rawDocs.map(d => compressor.decompress(d as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+      : rawDocs;
+
     const matched = allDocs.filter(doc => matchQuery(doc, this.filter));
     const sorted = applySortAndPagination(matched, this.options);
     this.cachedResult = sorted;
