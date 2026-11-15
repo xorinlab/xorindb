@@ -1,5 +1,6 @@
-import { BaseDocument, DocumentWithMeta, FilterQuery, QueryOptions } from '../types';
+import { BaseDocument, ChangeEvent, DocumentWithMeta, FilterQuery, QueryOptions } from '../types';
 import { Collection } from '../collection';
+import { calculateEventReduce } from './event-reduce';
 import { matchQuery, applySortAndPagination } from './matcher';
 
 export type QuerySubscriber<T> = (data: DocumentWithMeta<T>[]) => void;
@@ -31,6 +32,17 @@ export class Query<T extends BaseDocument> {
     return list.length > 0 ? list[0] : null;
   }
 
+  private notifySubscribers(data: DocumentWithMeta<T>[]): void {
+    this.cachedResult = data;
+    for (const sub of this.subscribers) {
+      try {
+        sub(data);
+      } catch (e) {
+        console.error('Error in query subscriber:', e);
+      }
+    }
+  }
+
   subscribe(callback: QuerySubscriber<T>): () => void {
     this.subscribers.add(callback);
 
@@ -42,15 +54,29 @@ export class Query<T extends BaseDocument> {
     if (!this.unbindEvent) {
       this.unbindEvent = this.collection.getEmitter().on<T>(
         this.collection.getName(),
-        async () => {
-          const freshData = await this.exec();
-          for (const sub of this.subscribers) {
-            try {
-              sub(freshData);
-            } catch (e) {
-              console.error('Error in query subscriber:', e);
-            }
+        async (event: ChangeEvent<T>) => {
+          // EventReduce Optimization
+          const decision = calculateEventReduce(
+            this.cachedResult,
+            event,
+            this.filter,
+            this.options
+          );
+
+          if (decision.action === 'do-nothing') {
+            // Unrelated event! Skip full disk re-query and prevent unnecessary UI re-renders!
+            return;
           }
+
+          if (decision.updatedResult) {
+            // Calculated in-memory without expensive disk scan
+            this.notifySubscribers(decision.updatedResult);
+            return;
+          }
+
+          // Fallback: run full query from storage
+          const freshData = await this.exec();
+          this.notifySubscribers(freshData);
         }
       );
     }
