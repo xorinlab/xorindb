@@ -1,9 +1,15 @@
 import { DocumentWithMeta, PrimaryKey, StorageAdapter } from '../types';
 
+export interface IndexConfig {
+  name: string;
+  keyPath: string | string[];
+}
+
 export class IndexedDBStorageAdapter implements StorageAdapter {
   private db: IDBDatabase | null = null;
   private dbName: string = 'xorindb_default';
   private knownCollections: Set<string> = new Set();
+  private collectionIndexes: Map<string, IndexConfig[]> = new Map();
 
   async init(dbName: string, collections: string[]): Promise<void> {
     this.dbName = dbName;
@@ -14,29 +20,54 @@ export class IndexedDBStorageAdapter implements StorageAdapter {
     await this.openDatabase();
   }
 
+  setIndexes(collection: string, indexes: Array<string | string[]>): void {
+    const list: IndexConfig[] = indexes.map((idx) => {
+      if (Array.isArray(idx)) {
+        return {
+          name: `idx_${idx.join('_')}`,
+          keyPath: idx
+        };
+      }
+      return {
+        name: `idx_${idx}`,
+        keyPath: idx
+      };
+    });
+    this.collectionIndexes.set(collection, list);
+  }
+
   private async openDatabase(targetVersion?: number): Promise<IDBDatabase> {
     if (typeof indexedDB === 'undefined') {
       throw new Error('IndexedDB is not available in this environment.');
     }
 
     return new Promise((resolve, reject) => {
-      // First, get current version if not specified
       const openReq = targetVersion !== undefined 
         ? indexedDB.open(this.dbName, targetVersion)
         : indexedDB.open(this.dbName);
 
-      openReq.onupgradeneeded = (event) => {
+      openReq.onupgradeneeded = () => {
         const db = openReq.result;
         for (const col of this.knownCollections) {
+          let store: IDBObjectStore;
           if (!db.objectStoreNames.contains(col)) {
-            db.createObjectStore(col, { keyPath: 'id' });
+            store = db.createObjectStore(col, { keyPath: 'id' });
+          } else {
+            store = openReq.transaction!.objectStore(col);
+          }
+
+          // Create single and compound indexes
+          const indexes = this.collectionIndexes.get(col) || [];
+          for (const idx of indexes) {
+            if (!store.indexNames.contains(idx.name)) {
+              store.createIndex(idx.name, idx.keyPath, { unique: false });
+            }
           }
         }
       };
 
       openReq.onsuccess = async () => {
         const db = openReq.result;
-        // Check if any registered collection is missing in object stores
         const missing = Array.from(this.knownCollections).filter(
           c => !db.objectStoreNames.contains(c)
         );
@@ -151,6 +182,7 @@ export class IndexedDBStorageAdapter implements StorageAdapter {
   async drop(): Promise<void> {
     await this.close();
     this.knownCollections.clear();
+    this.collectionIndexes.clear();
 
     if (typeof indexedDB !== 'undefined') {
       return new Promise<void>((resolve, reject) => {
@@ -158,7 +190,6 @@ export class IndexedDBStorageAdapter implements StorageAdapter {
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
         req.onblocked = () => {
-          // In some browsers onblocked fires if other connections are open
           console.warn(`[xorindb] deleteDatabase blocked for "${this.dbName}"`);
           resolve();
         };

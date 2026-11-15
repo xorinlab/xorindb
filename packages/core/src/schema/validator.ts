@@ -10,6 +10,8 @@ export interface JsonSchemaProperty {
   items?: JsonSchemaProperty;
 }
 
+export type IndexDefinition<T> = keyof T | Array<keyof T>;
+
 export interface CollectionSchema<T = Record<string, unknown>> {
   title?: string;
   version?: number;
@@ -19,7 +21,7 @@ export interface CollectionSchema<T = Record<string, unknown>> {
     [P in keyof T]?: JsonSchemaProperty;
   };
   required?: Array<keyof T>;
-  indexes?: Array<keyof T>;
+  indexes?: Array<IndexDefinition<T>>;
 }
 
 export function validateDocumentAgainstSchema<T>(

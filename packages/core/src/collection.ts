@@ -41,6 +41,11 @@ export class Collection<T extends BaseDocument> {
     this.schema = options?.schema;
     this.migrationStrategies = options?.migrationStrategies;
 
+    // Register single and compound indexes to storage adapter if supported
+    if (this.schema?.indexes && 'setIndexes' in this.storage) {
+      (this.storage as any).setIndexes(this.name, this.schema.indexes);
+    }
+
     if (this.schema?.version && this.migrationStrategies) {
       const migrator = new MigrationEngine<T>(this);
       this.migrationPromise = migrator.runMigration(
