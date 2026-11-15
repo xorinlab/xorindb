@@ -15,7 +15,7 @@ export type IndexDefinition<T> = keyof T | Array<keyof T>;
 export interface CollectionSchema<T = Record<string, unknown>> {
   title?: string;
   version?: number;
-  primaryKey?: string;
+  primaryKey?: keyof T | string;
   type?: 'object';
   properties?: {
     [P in keyof T]?: JsonSchemaProperty;

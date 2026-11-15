@@ -80,6 +80,24 @@ export class Collection<T extends BaseDocument> {
     return this.emitter;
   }
 
+  getPrimaryKeyField(): string {
+    return (this.schema?.primaryKey as string) || 'id';
+  }
+
+  private resolveDocumentId(data: Record<string, unknown>): string {
+    const pkField = this.getPrimaryKeyField();
+    const customVal = data[pkField];
+    if (customVal !== undefined && customVal !== null) {
+      return String(customVal);
+    }
+    if (data.id !== undefined && data.id !== null) {
+      return String(data.id);
+    }
+    const generated = generateUUID();
+    data[pkField] = generated;
+    return generated;
+  }
+
   async insert(data: Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }): Promise<DocumentWithMeta<T>> {
     await this.ensureMigrated();
 
@@ -88,9 +106,11 @@ export class Collection<T extends BaseDocument> {
       validateDocumentAgainstSchema(data as Record<string, unknown>, this.schema);
     }
 
-    const id = data.id || generateUUID();
+    const docObj = { ...(data as unknown as Record<string, unknown>) };
+    const id = this.resolveDocumentId(docObj);
+
     const doc: DocumentWithMeta<T> = {
-      ...(data as unknown as T),
+      ...(docObj as unknown as T),
       id,
       _deleted: false,
       _updatedAt: Date.now()
@@ -118,9 +138,10 @@ export class Collection<T extends BaseDocument> {
     }
 
     const prepared: DocumentWithMeta<T>[] = docs.map((item) => {
-      const id = item.id || generateUUID();
+      const docObj = { ...(item as unknown as Record<string, unknown>) };
+      const id = this.resolveDocumentId(docObj);
       return {
-        ...(item as unknown as T),
+        ...(docObj as unknown as T),
         id,
         _deleted: false,
         _updatedAt: Date.now()
