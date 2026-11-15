@@ -53,6 +53,22 @@ export interface StorageAdapter {
   close(): Promise<void>;
 }
 
+export interface Checkpoint {
+  id: PrimaryKey;
+  updatedAt: number;
+}
+
+export interface ChangeRow<T> {
+  id: PrimaryKey;
+  newDocumentState: DocumentWithMeta<T>;
+  assumedMasterState?: DocumentWithMeta<T> | null;
+}
+
+export interface PullResult<T> {
+  documents: DocumentWithMeta<T>[];
+  checkpoint: Checkpoint | null;
+}
+
 export interface SyncPushResult<T> {
   conflicts?: Array<{
     id: PrimaryKey;
@@ -61,11 +77,24 @@ export interface SyncPushResult<T> {
   }>;
 }
 
+export interface HttpReplicationOptions<T> {
+  url: string; // e.g. "https://api.myapp.com"
+  headers?: Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
+  batchSize?: number;
+  pullStream?: boolean; // Default true (uses Server-Sent Events / EventSource)
+  pullIntervalMs?: number; // Fallback or periodic polling (default 10s)
+  conflictResolver?: (conflict: {
+    clientState: DocumentWithMeta<T>;
+    serverState: DocumentWithMeta<T>;
+  }) => DocumentWithMeta<T> | Promise<DocumentWithMeta<T>>;
+}
+
 export interface SyncOptions<T> {
   endpoint?: string;
   pullIntervalMs?: number;
-  pull?: (checkpoint: number) => Promise<{ documents: DocumentWithMeta<T>[]; checkpoint: number }>;
-  push?: (changes: DocumentWithMeta<T>[]) => Promise<SyncPushResult<T> | void>;
+  pull?: (checkpoint: Checkpoint | null, batchSize: number) => Promise<PullResult<T>>;
+  push?: (changeRows: ChangeRow<T>[]) => Promise<Array<DocumentWithMeta<T>> | void>;
+  streamUrl?: string;
   conflictResolver?: (conflict: {
     clientState: DocumentWithMeta<T>;
     serverState: DocumentWithMeta<T>;

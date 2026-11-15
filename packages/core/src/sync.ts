@@ -1,14 +1,15 @@
 import { Collection } from './collection';
-import { BaseDocument, DocumentWithMeta, SyncOptions } from './types';
+import { BaseDocument, ChangeRow, Checkpoint, DocumentWithMeta, SyncOptions } from './types';
 
 export class SyncEngine<T extends BaseDocument> {
   private collection: Collection<T>;
   private options: SyncOptions<T>;
   private isRunning: boolean = false;
-  private checkpoint: number = 0;
+  private checkpoint: Checkpoint | null = null;
   private intervalTimer: ReturnType<typeof setInterval> | null = null;
-  private pendingPushBatch: Map<string, DocumentWithMeta<T>> = new Map();
+  private pendingPushBatch: Map<string, ChangeRow<T>> = new Map();
   private isPushing: boolean = false;
+  private eventSource: EventSource | null = null;
 
   constructor(collection: Collection<T>, options: SyncOptions<T>) {
     this.collection = collection;
@@ -19,18 +20,27 @@ export class SyncEngine<T extends BaseDocument> {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // Listen to local changes to automatically push
+    // 1. Listen to local collection writes to queue pushes
     this.collection.getEmitter().on<T>(this.collection.getName(), (event) => {
       if (event.doc) {
-        this.pendingPushBatch.set(event.doc.id, event.doc);
+        this.pendingPushBatch.set(event.id, {
+          id: event.id,
+          newDocumentState: event.doc,
+          assumedMasterState: event.previous || null
+        });
         this.debouncedPush();
       }
     });
 
-    // Initial pull
+    // 2. Initial iteration pull
     await this.pull();
 
-    // Setup polling for pull if pullIntervalMs provided
+    // 3. Setup real-time Server-Sent Events (SSE) stream if URL provided
+    if (this.options.streamUrl && typeof EventSource !== 'undefined') {
+      this.initStream();
+    }
+
+    // 4. Fallback interval polling
     const interval = this.options.pullIntervalMs ?? 10000;
     this.intervalTimer = setInterval(() => {
       if (this.isRunning) {
@@ -39,11 +49,56 @@ export class SyncEngine<T extends BaseDocument> {
     }, interval);
   }
 
+  private initStream(): void {
+    if (!this.options.streamUrl || typeof EventSource === 'undefined') return;
+
+    try {
+      this.eventSource = new EventSource(this.options.streamUrl, { withCredentials: true });
+
+      this.eventSource.onmessage = async (event) => {
+        try {
+          if (!event.data) return;
+
+          // RESYNC protocol
+          if (event.data === 'RESYNC') {
+            await this.pull();
+            return;
+          }
+
+          const parsed = JSON.parse(event.data);
+          if (parsed.documents && Array.isArray(parsed.documents)) {
+            await this.processIncomingDocuments(parsed.documents);
+            if (parsed.checkpoint) {
+              this.checkpoint = parsed.checkpoint;
+            }
+          }
+        } catch (err) {
+          console.warn('[xorindb SSE stream error]', err);
+        }
+      };
+
+      this.eventSource.onerror = async () => {
+        // Step 9 from spec: On stream error/reconnect, emit RESYNC to catch up missing writes
+        try {
+          await this.pull();
+        } catch {
+          // ignore
+        }
+      };
+    } catch (e) {
+      console.warn('[xorindb] EventSource initialization failed:', e);
+    }
+  }
+
   stop(): void {
     this.isRunning = false;
     if (this.intervalTimer) {
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
+    }
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
     }
   }
 
@@ -51,55 +106,77 @@ export class SyncEngine<T extends BaseDocument> {
     if (!this.options.pull) return;
 
     try {
-      const response = await this.options.pull(this.checkpoint);
-      if (response && Array.isArray(response.documents) && response.documents.length > 0) {
-        const storage = this.collection.getStorage();
-        for (const serverDoc of response.documents) {
-          const localDoc = await storage.get<T>(this.collection.getName(), serverDoc.id);
+      const batchSize = 100;
+      let hasMore = true;
 
-          if (!localDoc) {
-            // New doc from server
-            await storage.put(this.collection.getName(), serverDoc);
-            this.collection.getEmitter().emit(this.collection.getName(), {
-              collection: this.collection.getName(),
-              type: serverDoc._deleted ? 'delete' : 'insert',
-              id: serverDoc.id,
-              doc: serverDoc
-            });
-          } else {
-            // Check conflict
-            if (localDoc._updatedAt > serverDoc._updatedAt) {
-              // Local is newer or conflict
-              let resolved = serverDoc;
-              if (this.options.conflictResolver) {
-                resolved = await this.options.conflictResolver({
-                  clientState: localDoc,
-                  serverState: serverDoc
-                });
-              }
-              await storage.put(this.collection.getName(), resolved);
-              this.collection.getEmitter().emit(this.collection.getName(), {
-                collection: this.collection.getName(),
-                type: resolved._deleted ? 'delete' : 'update',
-                id: resolved.id,
-                doc: resolved
-              });
-            } else {
-              // Server is newer
-              await storage.put(this.collection.getName(), serverDoc);
-              this.collection.getEmitter().emit(this.collection.getName(), {
-                collection: this.collection.getName(),
-                type: serverDoc._deleted ? 'delete' : 'update',
-                id: serverDoc.id,
-                doc: serverDoc
-              });
-            }
-          }
+      while (hasMore && this.isRunning) {
+        const response = await this.options.pull(this.checkpoint, batchSize);
+
+        if (!response || !response.documents || response.documents.length === 0) {
+          hasMore = false;
+          break;
         }
-        this.checkpoint = response.checkpoint;
+
+        await this.processIncomingDocuments(response.documents);
+
+        if (response.checkpoint) {
+          this.checkpoint = response.checkpoint;
+        }
+
+        // If returned documents less than requested batch size, server has no more documents for now
+        if (response.documents.length < batchSize) {
+          hasMore = false;
+        }
       }
     } catch (err) {
       console.warn(`[xorindb sync] Pull failed for ${this.collection.getName()}:`, err);
+    }
+  }
+
+  private async processIncomingDocuments(incoming: DocumentWithMeta<T>[]): Promise<void> {
+    const storage = this.collection.getStorage();
+    const colName = this.collection.getName();
+
+    for (const serverDoc of incoming) {
+      const localDoc = await storage.get<T>(colName, serverDoc.id);
+
+      if (!localDoc) {
+        // Document doesn't exist locally: save server state
+        await storage.put(colName, serverDoc);
+        this.collection.getEmitter().emit(colName, {
+          collection: colName,
+          type: serverDoc._deleted ? 'delete' : 'insert',
+          id: serverDoc.id,
+          doc: serverDoc
+        });
+      } else {
+        // Conflict resolution
+        if (localDoc._updatedAt > serverDoc._updatedAt) {
+          let resolved = serverDoc;
+          if (this.options.conflictResolver) {
+            resolved = await this.options.conflictResolver({
+              clientState: localDoc,
+              serverState: serverDoc
+            });
+          }
+          await storage.put(colName, resolved);
+          this.collection.getEmitter().emit(colName, {
+            collection: colName,
+            type: resolved._deleted ? 'delete' : 'update',
+            id: resolved.id,
+            doc: resolved
+          });
+        } else {
+          // Server state is newer
+          await storage.put(colName, serverDoc);
+          this.collection.getEmitter().emit(colName, {
+            collection: colName,
+            type: serverDoc._deleted ? 'delete' : 'update',
+            id: serverDoc.id,
+            doc: serverDoc
+          });
+        }
+      }
     }
   }
 
@@ -108,7 +185,7 @@ export class SyncEngine<T extends BaseDocument> {
     if (this.pushTimeout) clearTimeout(this.pushTimeout);
     this.pushTimeout = setTimeout(() => {
       this.push().catch(console.error);
-    }, 300);
+    }, 200);
   }
 
   async push(): Promise<void> {
@@ -119,32 +196,36 @@ export class SyncEngine<T extends BaseDocument> {
     this.pendingPushBatch.clear();
 
     try {
-      const result = await this.options.push(batch);
+      // Send change rows: [{ id, newDocumentState, assumedMasterState }]
+      const conflicts = await this.options.push(batch);
 
       // Handle server conflicts returned from push
-      if (result && result.conflicts && result.conflicts.length > 0) {
-        for (const conflict of result.conflicts) {
-          let resolved = conflict.serverState;
-          if (this.options.conflictResolver) {
-            resolved = await this.options.conflictResolver({
-              clientState: conflict.clientState,
-              serverState: conflict.serverState
+      if (conflicts && Array.isArray(conflicts) && conflicts.length > 0) {
+        for (const serverMasterState of conflicts) {
+          const clientRow = batch.find((r) => r.id === serverMasterState.id);
+          if (clientRow) {
+            let resolved = serverMasterState;
+            if (this.options.conflictResolver) {
+              resolved = await this.options.conflictResolver({
+                clientState: clientRow.newDocumentState,
+                serverState: serverMasterState
+              });
+            }
+            await this.collection.getStorage().put(this.collection.getName(), resolved);
+            this.collection.getEmitter().emit(this.collection.getName(), {
+              collection: this.collection.getName(),
+              type: resolved._deleted ? 'delete' : 'update',
+              id: resolved.id,
+              doc: resolved
             });
           }
-          await this.collection.getStorage().put(this.collection.getName(), resolved);
-          this.collection.getEmitter().emit(this.collection.getName(), {
-            collection: this.collection.getName(),
-            type: resolved._deleted ? 'delete' : 'update',
-            id: resolved.id,
-            doc: resolved
-          });
         }
       }
     } catch (err) {
       console.warn(`[xorindb sync] Push failed for ${this.collection.getName()}:`, err);
-      // Re-add to batch to retry next time
-      for (const doc of batch) {
-        this.pendingPushBatch.set(doc.id, doc);
+      // Re-add to batch to retry next cycle
+      for (const row of batch) {
+        this.pendingPushBatch.set(row.id, row);
       }
     } finally {
       this.isPushing = false;
