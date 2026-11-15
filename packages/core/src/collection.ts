@@ -1,8 +1,10 @@
 import { EventEmitter } from './events/emitter';
 import { Query } from './query/query';
+import { CollectionSchema, validateDocumentAgainstSchema } from './schema/validator';
 import { SyncEngine } from './sync';
 import {
   BaseDocument,
+  CollectionOptions,
   DocumentWithMeta,
   FilterQuery,
   PrimaryKey,
@@ -26,12 +28,18 @@ export class Collection<T extends BaseDocument> {
   private name: string;
   private storage: StorageAdapter;
   private emitter: EventEmitter;
+  private schema?: CollectionSchema<T>;
   private syncEngine: SyncEngine<T> | null = null;
 
-  constructor(name: string, storage: StorageAdapter, emitter: EventEmitter) {
+  constructor(name: string, storage: StorageAdapter, emitter: EventEmitter, options?: CollectionOptions<T>) {
     this.name = name;
     this.storage = storage;
     this.emitter = emitter;
+    this.schema = options?.schema;
+  }
+
+  getSchema(): CollectionSchema<T> | undefined {
+    return this.schema;
   }
 
   getName(): string {
@@ -47,6 +55,11 @@ export class Collection<T extends BaseDocument> {
   }
 
   async insert(data: Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }): Promise<DocumentWithMeta<T>> {
+    // Validate schema
+    if (this.schema) {
+      validateDocumentAgainstSchema(data as Record<string, unknown>, this.schema);
+    }
+
     const id = data.id || generateUUID();
     const doc: DocumentWithMeta<T> = {
       ...(data as unknown as T),
@@ -68,6 +81,12 @@ export class Collection<T extends BaseDocument> {
   }
 
   async insertMany(docs: Array<Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }>): Promise<DocumentWithMeta<T>[]> {
+    if (this.schema) {
+      for (const item of docs) {
+        validateDocumentAgainstSchema(item as Record<string, unknown>, this.schema);
+      }
+    }
+
     const prepared: DocumentWithMeta<T>[] = docs.map((item) => {
       const id = item.id || generateUUID();
       return {
@@ -113,6 +132,10 @@ export class Collection<T extends BaseDocument> {
       ...patch,
       _updatedAt: Date.now()
     };
+
+    if (this.schema) {
+      validateDocumentAgainstSchema(updated as Record<string, unknown>, this.schema);
+    }
 
     await this.storage.put(this.name, updated);
 

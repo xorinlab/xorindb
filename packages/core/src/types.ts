@@ -34,6 +34,10 @@ export interface QueryOptions<T> {
 
 export type ChangeType = 'insert' | 'update' | 'delete';
 
+export interface CollectionOptions<T> {
+  schema?: import('./schema/validator').CollectionSchema<T>;
+}
+
 export interface ChangeEvent<T> {
   collection: string;
   type: ChangeType;

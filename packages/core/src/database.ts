@@ -25,9 +25,9 @@ export class Database {
     await this.storage.init(this.name, Array.from(this.collections.keys()));
   }
 
-  collection<T extends BaseDocument = BaseDocument>(name: string): Collection<T> {
+  collection<T extends BaseDocument = BaseDocument>(name: string, options?: import('./types').CollectionOptions<T>): Collection<T> {
     if (!this.collections.has(name)) {
-      const col = new Collection<T>(name, this.storage, this.emitter);
+      const col = new Collection<T>(name, this.storage, this.emitter, options);
       this.collections.set(name, col);
     }
     return this.collections.get(name) as Collection<T>;

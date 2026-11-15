@@ -7,3 +7,4 @@ export * from './storage/indexeddb';
 export * from './storage/index';
 export * from './sync';
 export * from './replication/http';
+export * from './schema/validator';
