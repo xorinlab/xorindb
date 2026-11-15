@@ -16,6 +16,7 @@
   "homepage": "https://github.com/xorinlab/xorindb#readme",
   "scripts": {
     "build": "bun --filter \"*\" build",
+    "line": "",
     "test": "vitest run",
     "test:watch": "vitest"
   },
