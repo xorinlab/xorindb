@@ -51,6 +51,10 @@ export class MemoryStorageAdapter implements StorageAdapter {
     }
   }
 
+  async drop(): Promise<void> {
+    this.stores.clear();
+  }
+
   async close(): Promise<void> {
     this.stores.clear();
   }

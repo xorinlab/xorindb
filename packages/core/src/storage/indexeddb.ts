@@ -148,6 +148,24 @@ export class IndexedDBStorageAdapter implements StorageAdapter {
     });
   }
 
+  async drop(): Promise<void> {
+    await this.close();
+    this.knownCollections.clear();
+
+    if (typeof indexedDB !== 'undefined') {
+      return new Promise<void>((resolve, reject) => {
+        const req = indexedDB.deleteDatabase(this.dbName);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+        req.onblocked = () => {
+          // In some browsers onblocked fires if other connections are open
+          console.warn(`[xorindb] deleteDatabase blocked for "${this.dbName}"`);
+          resolve();
+        };
+      });
+    }
+  }
+
   async close(): Promise<void> {
     if (this.db) {
       this.db.close();

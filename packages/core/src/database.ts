@@ -66,17 +66,14 @@ export class Database {
 
   /**
    * Drops the database and clears all stored data from IndexedDB or memory.
+   * Also cleans up all leader elections, subscriptions, and cached instances.
    */
   async remove(): Promise<void> {
-    await this.close();
-    if (typeof indexedDB !== 'undefined') {
-      await new Promise<void>((resolve, reject) => {
-        const req = indexedDB.deleteDatabase(this.name);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-        req.onblocked = () => resolve();
-      });
-    }
+    this.leaderElector.close();
+    this.emitter.close();
+    this.collections.clear();
+    DATABASE_CACHE.delete(this.name);
+    await this.storage.drop();
   }
 }
 

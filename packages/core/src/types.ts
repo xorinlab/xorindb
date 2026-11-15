@@ -50,6 +50,7 @@ export interface StorageAdapter {
   putBatch<T>(collection: string, docs: DocumentWithMeta<T>[]): Promise<void>;
   delete(collection: string, id: PrimaryKey): Promise<void>;
   clear(collection: string): Promise<void>;
+  drop(): Promise<void>;
   close(): Promise<void>;
 }
 
