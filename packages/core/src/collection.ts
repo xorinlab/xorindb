@@ -1,5 +1,6 @@
 import { EventEmitter } from './events/emitter';
 import { Query } from './query/query';
+import { MigrationEngine, MigrationStrategies } from './schema/migration';
 import { CollectionSchema, validateDocumentAgainstSchema } from './schema/validator';
 import { SyncEngine } from './sync';
 import {
@@ -29,13 +30,33 @@ export class Collection<T extends BaseDocument> {
   private storage: StorageAdapter;
   private emitter: EventEmitter;
   private schema?: CollectionSchema<T>;
+  private migrationStrategies?: MigrationStrategies;
   private syncEngine: SyncEngine<T> | null = null;
+  private migrationPromise: Promise<void> | null = null;
 
   constructor(name: string, storage: StorageAdapter, emitter: EventEmitter, options?: CollectionOptions<T>) {
     this.name = name;
     this.storage = storage;
     this.emitter = emitter;
     this.schema = options?.schema;
+    this.migrationStrategies = options?.migrationStrategies;
+
+    if (this.schema?.version && this.migrationStrategies) {
+      const migrator = new MigrationEngine<T>(this);
+      this.migrationPromise = migrator.runMigration(
+        this.schema.version,
+        this.migrationStrategies
+      );
+    }
+  }
+
+  /**
+   * Ensures that any pending schema migrations have completed before proceeding.
+   */
+  async ensureMigrated(): Promise<void> {
+    if (this.migrationPromise) {
+      await this.migrationPromise;
+    }
   }
 
   getSchema(): CollectionSchema<T> | undefined {
@@ -55,6 +76,8 @@ export class Collection<T extends BaseDocument> {
   }
 
   async insert(data: Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }): Promise<DocumentWithMeta<T>> {
+    await this.ensureMigrated();
+
     // Validate schema
     if (this.schema) {
       validateDocumentAgainstSchema(data as Record<string, unknown>, this.schema);
@@ -81,6 +104,8 @@ export class Collection<T extends BaseDocument> {
   }
 
   async insertMany(docs: Array<Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }>): Promise<DocumentWithMeta<T>[]> {
+    await this.ensureMigrated();
+
     if (this.schema) {
       for (const item of docs) {
         validateDocumentAgainstSchema(item as Record<string, unknown>, this.schema);
@@ -112,6 +137,7 @@ export class Collection<T extends BaseDocument> {
   }
 
   async findById(id: PrimaryKey): Promise<DocumentWithMeta<T> | null> {
+    await this.ensureMigrated();
     const doc = await this.storage.get<T>(this.name, id);
     if (!doc || doc._deleted) return null;
     return doc;

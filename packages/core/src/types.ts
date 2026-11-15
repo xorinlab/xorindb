@@ -36,6 +36,7 @@ export type ChangeType = 'insert' | 'update' | 'delete';
 
 export interface CollectionOptions<T> {
   schema?: import('./schema/validator').CollectionSchema<T>;
+  migrationStrategies?: import('./schema/migration').MigrationStrategies;
 }
 
 export interface ChangeEvent<T> {

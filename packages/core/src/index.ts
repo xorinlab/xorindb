@@ -8,3 +8,4 @@ export * from './storage/index';
 export * from './sync';
 export * from './replication/http';
 export * from './schema/validator';
+export * from './schema/migration';

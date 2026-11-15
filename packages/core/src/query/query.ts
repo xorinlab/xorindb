@@ -20,6 +20,7 @@ export class Query<T extends BaseDocument> {
   }
 
   async exec(): Promise<DocumentWithMeta<T>[]> {
+    await this.collection.ensureMigrated();
     const allDocs = await this.collection.getStorage().getAll<T>(this.collection.getName());
     const matched = allDocs.filter(doc => matchQuery(doc, this.filter));
     const sorted = applySortAndPagination(matched, this.options);
