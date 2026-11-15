@@ -1,6 +1,7 @@
 import { EventEmitter } from './events/emitter';
 import { Query } from './query/query';
 import { KeyCompressor } from './schema/compression';
+import { FieldEncryptor } from './schema/encryption';
 import { MigrationEngine, MigrationStrategies } from './schema/migration';
 import { CollectionSchema, validateDocumentAgainstSchema } from './schema/validator';
 import { SyncEngine } from './sync';
@@ -33,16 +34,24 @@ export class Collection<T extends BaseDocument> {
   private schema?: CollectionSchema<T>;
   private migrationStrategies?: MigrationStrategies;
   private keyCompressor: KeyCompressor<T>;
+  private fieldEncryptor: FieldEncryptor<T>;
   private syncEngine: SyncEngine<T> | null = null;
   private migrationPromise: Promise<void> | null = null;
 
-  constructor(name: string, storage: StorageAdapter, emitter: EventEmitter, options?: CollectionOptions<T>) {
+  constructor(
+    name: string,
+    storage: StorageAdapter,
+    emitter: EventEmitter,
+    options?: CollectionOptions<T>,
+    password?: string
+  ) {
     this.name = name;
     this.storage = storage;
     this.emitter = emitter;
     this.schema = options?.schema;
     this.migrationStrategies = options?.migrationStrategies;
     this.keyCompressor = new KeyCompressor<T>(this.schema);
+    this.fieldEncryptor = new FieldEncryptor<T>(password, this.schema);
 
     // Register single and compound indexes to storage adapter if supported
     if (this.schema?.indexes && 'setIndexes' in this.storage) {
@@ -73,6 +82,10 @@ export class Collection<T extends BaseDocument> {
 
   getKeyCompressor(): KeyCompressor<T> {
     return this.keyCompressor;
+  }
+
+  getFieldEncryptor(): FieldEncryptor<T> {
+    return this.fieldEncryptor;
   }
 
   getName(): string {
@@ -123,10 +136,15 @@ export class Collection<T extends BaseDocument> {
       _updatedAt: Date.now()
     };
 
+    // Encrypt sensitive fields if configured
+    const encryptedDoc = this.fieldEncryptor.hasEncryptedFields()
+      ? (await this.fieldEncryptor.encryptDoc(doc as unknown as Record<string, unknown>)) as unknown as DocumentWithMeta<T>
+      : doc;
+
     // Compress keys before persisting to storage if keyCompression is enabled
     const storageDoc = this.keyCompressor.isCompressionEnabled()
-      ? (this.keyCompressor.compress(doc as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
-      : doc;
+      ? (this.keyCompressor.compress(encryptedDoc as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+      : encryptedDoc;
 
     await this.storage.put(this.name, storageDoc);
 
@@ -160,9 +178,15 @@ export class Collection<T extends BaseDocument> {
       };
     });
 
-    const storageDocs = this.keyCompressor.isCompressionEnabled()
-      ? prepared.map((d) => this.keyCompressor.compress(d as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+    const encryptedBatch = this.fieldEncryptor.hasEncryptedFields()
+      ? await Promise.all(
+          prepared.map((d) => this.fieldEncryptor.encryptDoc(d as unknown as Record<string, unknown>))
+        )
       : prepared;
+
+    const storageDocs = this.keyCompressor.isCompressionEnabled()
+      ? (encryptedBatch as Array<Record<string, unknown>>).map((d) => this.keyCompressor.compress(d) as unknown as DocumentWithMeta<T>)
+      : (encryptedBatch as DocumentWithMeta<T>[]);
 
     await this.storage.putBatch(this.name, storageDocs);
 
@@ -183,9 +207,13 @@ export class Collection<T extends BaseDocument> {
     const raw = await this.storage.get<T>(this.name, id);
     if (!raw || raw._deleted) return null;
 
-    const doc = this.keyCompressor.isCompressionEnabled()
+    const decompressed = this.keyCompressor.isCompressionEnabled()
       ? (this.keyCompressor.decompress(raw as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
       : raw;
+
+    const doc = this.fieldEncryptor.hasEncryptedFields()
+      ? (await this.fieldEncryptor.decryptDoc(decompressed as unknown as Record<string, unknown>)) as unknown as DocumentWithMeta<T>
+      : decompressed;
 
     return doc;
   }
@@ -210,9 +238,13 @@ export class Collection<T extends BaseDocument> {
       validateDocumentAgainstSchema(updated as Record<string, unknown>, this.schema);
     }
 
-    const storageUpdated = this.keyCompressor.isCompressionEnabled()
-      ? (this.keyCompressor.compress(updated as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+    const encryptedUpdated = this.fieldEncryptor.hasEncryptedFields()
+      ? (await this.fieldEncryptor.encryptDoc(updated as unknown as Record<string, unknown>)) as unknown as DocumentWithMeta<T>
       : updated;
+
+    const storageUpdated = this.keyCompressor.isCompressionEnabled()
+      ? (this.keyCompressor.compress(encryptedUpdated as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
+      : encryptedUpdated;
 
     await this.storage.put(this.name, storageUpdated);
 

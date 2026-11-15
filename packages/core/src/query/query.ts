@@ -23,10 +23,19 @@ export class Query<T extends BaseDocument> {
     await this.collection.ensureMigrated();
     const rawDocs = await this.collection.getStorage().getAll<T>(this.collection.getName());
     const compressor = this.collection.getKeyCompressor();
+    const encryptor = this.collection.getFieldEncryptor();
 
-    const allDocs = compressor.isCompressionEnabled()
+    const decompressedDocs = compressor.isCompressionEnabled()
       ? rawDocs.map(d => compressor.decompress(d as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
       : rawDocs;
+
+    const allDocs = encryptor.hasEncryptedFields()
+      ? await Promise.all(
+          decompressedDocs.map(
+            async d => (await encryptor.decryptDoc(d as unknown as Record<string, unknown>)) as unknown as DocumentWithMeta<T>
+          )
+        )
+      : decompressedDocs;
 
     const matched = allDocs.filter(doc => matchQuery(doc, this.filter));
     const sorted = applySortAndPagination(matched, this.options);

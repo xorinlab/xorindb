@@ -17,6 +17,7 @@ export interface CollectionSchema<T = Record<string, unknown>> {
   version?: number;
   primaryKey?: keyof T | string;
   keyCompression?: boolean;
+  encrypted?: Array<keyof T>;
   type?: 'object';
   properties?: {
     [P in keyof T]?: JsonSchemaProperty;

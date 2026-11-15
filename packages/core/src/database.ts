@@ -9,6 +9,7 @@ const DATABASE_CACHE = new Map<string, Database>();
 
 export class Database {
   private name: string;
+  private password?: string;
   private storage: StorageAdapter;
   private emitter: EventEmitter;
   private leaderElector: LeaderElector;
@@ -16,6 +17,7 @@ export class Database {
 
   constructor(options: DatabaseOptions) {
     this.name = options.name;
+    this.password = options.password;
     this.storage = options.storage || createDefaultStorage();
     this.emitter = new EventEmitter(this.name, options.multiTab ?? true);
     this.leaderElector = new LeaderElector(this.name);
@@ -27,7 +29,7 @@ export class Database {
 
   collection<T extends BaseDocument = BaseDocument>(name: string, options?: import('./types').CollectionOptions<T>): Collection<T> {
     if (!this.collections.has(name)) {
-      const col = new Collection<T>(name, this.storage, this.emitter, options);
+      const col = new Collection<T>(name, this.storage, this.emitter, options, this.password);
       this.collections.set(name, col);
     }
     return this.collections.get(name) as Collection<T>;

@@ -109,6 +109,7 @@ export interface SyncOptions<T> {
 
 export interface DatabaseOptions {
   name: string;
+  password?: string; // Optional encryption password for encrypting sensitive fields
   storage?: StorageAdapter;
   multiTab?: boolean;
   ignoreDuplicate?: boolean; // Default true: returns existing instance if same name already instantiated
