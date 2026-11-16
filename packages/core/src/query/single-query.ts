@@ -1,4 +1,4 @@
-import { BaseDocument, DocumentWithMeta, FilterQuery, QueryOptions } from '../types';
+import { BaseDocument, DocumentWithMeta, FilterQuery, MangoQuery, QueryInput, QueryOptions } from '../types';
 import { Collection } from '../collection';
 import { Query } from './query';
 
@@ -8,18 +8,15 @@ export class SingleDocQuery<T extends BaseDocument> {
   private query: Query<T>;
   private collection: Collection<T>;
 
-  constructor(collection: Collection<T>, filter?: FilterQuery<T> | string, options?: QueryOptions<T>) {
+  constructor(collection: Collection<T>, filterOrMango?: QueryInput<T> | string, options?: QueryOptions<T>) {
     this.collection = collection;
-    let actualFilter: FilterQuery<T> | undefined;
 
-    if (typeof filter === 'string') {
+    if (typeof filterOrMango === 'string') {
       const pk = collection.getPrimaryKeyField();
-      actualFilter = { [pk]: filter } as FilterQuery<T>;
+      this.query = new Query<T>(collection, { [pk]: filterOrMango } as FilterQuery<T>, { ...options, limit: 1 });
     } else {
-      actualFilter = filter;
+      this.query = new Query<T>(collection, filterOrMango, { ...options, limit: 1 });
     }
-
-    this.query = new Query<T>(collection, actualFilter, { ...options, limit: 1 });
   }
 
   where(filter: FilterQuery<T>): this {

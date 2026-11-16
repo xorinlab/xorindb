@@ -95,6 +95,17 @@ const topTask = await todos
   .sort({ priority: 'desc' })
   .exec();
 
+// RxDB-style Mango Query Object syntax
+const activeTodos = await todos.find({
+  selector: {
+    status: { $eq: 'todo' },
+    priority: { $gte: 2 }
+  },
+  sort: { priority: 'desc' },
+  skip: 0,
+  limit: 10
+}).exec();
+
 // Reactive Single Document Subscription
 const unsub = todos.findOne('t1').$.subscribe((doc) => {
   console.log('Current t1 state:', doc);

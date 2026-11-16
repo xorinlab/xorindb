@@ -1,4 +1,4 @@
-import { BaseDocument, ChangeEvent, DocumentWithMeta, FilterQuery, QueryOptions } from '../types';
+import { BaseDocument, ChangeEvent, DocumentWithMeta, FilterQuery, MangoQuery, QueryInput, QueryOptions } from '../types';
 import { Collection } from '../collection';
 import { calculateEventReduce } from './event-reduce';
 import { matchQuery, applySortAndPagination } from './matcher';
@@ -13,10 +13,22 @@ export class Query<T extends BaseDocument> {
   private unbindEvent?: () => void;
   private cachedResult: DocumentWithMeta<T>[] | null = null;
 
-  constructor(collection: Collection<T>, filter?: FilterQuery<T>, options?: QueryOptions<T>) {
+  constructor(collection: Collection<T>, filterOrMango?: QueryInput<T>, options?: QueryOptions<T>) {
     this.collection = collection;
-    this.filter = filter;
-    this.options = options;
+
+    // Detect Mango query object ({ selector, sort, limit, skip })
+    if (filterOrMango && typeof filterOrMango === 'object' && 'selector' in filterOrMango) {
+      const mango = filterOrMango as MangoQuery<T>;
+      this.filter = mango.selector;
+      this.options = {
+        sort: mango.sort ?? options?.sort,
+        limit: mango.limit ?? options?.limit,
+        skip: mango.skip ?? options?.skip
+      };
+    } else {
+      this.filter = filterOrMango as FilterQuery<T>;
+      this.options = options;
+    }
   }
 
   where(filter: FilterQuery<T>): this {

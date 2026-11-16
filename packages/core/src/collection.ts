@@ -145,27 +145,27 @@ export class Collection<T extends BaseDocument> {
     return restoreDocFromStorage(raw, this.fieldEncryptor, this.keyCompressor);
   }
 
-  find(filter?: FilterQuery<T>, options?: QueryOptions<T>): Query<T> {
-    return new Query<T>(this, filter, options);
+  find(filterOrMango?: import('./types').QueryInput<T>, options?: QueryOptions<T>): Query<T> {
+    return new Query<T>(this, filterOrMango, options);
   }
 
   /**
    * Fast count of documents. If a filter is provided, counts matching documents.
    * If no filter is provided, leverages the storage adapter's direct count.
    */
-  async count(filter?: FilterQuery<T>): Promise<number> {
+  async count(filterOrMango?: import('./types').QueryInput<T>): Promise<number> {
     await this.ensureMigrated();
-    if (!filter && this.storage.count) {
+    if (!filterOrMango && this.storage.count) {
       return this.storage.count(this.name);
     }
-    return this.find(filter).count();
+    return this.find(filterOrMango).count();
   }
 
   /**
-   * Find a single document by filter or primary key, returning a chainable SingleDocQuery.
+   * Find a single document by filter, mango query, or primary key.
    */
-  findOne(filter?: FilterQuery<T> | PrimaryKey, options?: QueryOptions<T>): SingleDocQuery<T> {
-    return new SingleDocQuery<T>(this, filter, options);
+  findOne(filterOrMango?: import('./types').QueryInput<T> | PrimaryKey, options?: QueryOptions<T>): SingleDocQuery<T> {
+    return new SingleDocQuery<T>(this, filterOrMango, options);
   }
 
   async update(id: PrimaryKey, patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<DocumentWithMeta<T>> {

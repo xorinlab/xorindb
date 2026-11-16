@@ -32,6 +32,16 @@ export interface QueryOptions<T> {
   skip?: number;
 }
 
+export interface MangoQuery<T> {
+  selector?: FilterQuery<T>;
+  sort?: QueryOptions<T>['sort'];
+  limit?: number;
+  skip?: number;
+  index?: string | string[];
+}
+
+export type QueryInput<T> = FilterQuery<T> | MangoQuery<T>;
+
 export type ChangeType = 'insert' | 'update' | 'delete';
 
 export interface BulkWriteError<T> {
