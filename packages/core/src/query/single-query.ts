@@ -32,9 +32,16 @@ export class SingleDocQuery<T extends BaseDocument> {
     return this;
   }
 
-  async exec(): Promise<DocumentWithMeta<T> | null> {
+  async exec(): Promise<DocumentWithMeta<T> | null>;
+  async exec(throwIfMissing: true): Promise<DocumentWithMeta<T>>;
+  async exec(throwIfMissing: boolean): Promise<DocumentWithMeta<T> | null>;
+  async exec(throwIfMissing: boolean = false): Promise<DocumentWithMeta<T> | null> {
     const list = await this.query.exec();
-    return list.length > 0 ? list[0] : null;
+    const doc = list.length > 0 ? list[0] : null;
+    if (!doc && throwIfMissing) {
+      throw new Error(`Result empty and throwIfMissing: true on collection "${this.collection.getName()}".`);
+    }
+    return doc;
   }
 
   /**
@@ -49,8 +56,8 @@ export class SingleDocQuery<T extends BaseDocument> {
   /**
    * Removes the single matched document.
    */
-  async remove(hardDelete: boolean = false): Promise<DocumentWithMeta<T> | null> {
-    const doc = await this.exec();
+  async remove(hardDelete: boolean = false, throwIfMissing: boolean = false): Promise<DocumentWithMeta<T> | null> {
+    const doc = await this.exec(throwIfMissing);
     if (!doc) return null;
     await this.collection.delete(doc.id, hardDelete);
     return doc;

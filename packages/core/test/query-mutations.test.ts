@@ -84,4 +84,23 @@ describe('Query update() & remove() bulk mutations', () => {
     const afterRemove = await profiles.findById('p1');
     expect(afterRemove).toBeNull();
   });
+
+  it('should support throwIfMissing option in findOne().exec() and findOne().remove()', async () => {
+    const users = db.collection<{ id?: string; name: string }>('users');
+    await users.insert({ id: 'u1', name: 'John' });
+
+    // With existing doc
+    const found = await users.findOne('u1').exec(true);
+    expect(found.name).toBe('John');
+
+    // With missing doc -> should throw
+    await expect(users.findOne('non_existent').exec(true)).rejects.toThrow(
+      'Result empty and throwIfMissing: true'
+    );
+
+    // remove with throwIfMissing: true on missing doc -> should throw
+    await expect(users.findOne('non_existent').remove(false, true)).rejects.toThrow(
+      'Result empty and throwIfMissing: true'
+    );
+  });
 });
