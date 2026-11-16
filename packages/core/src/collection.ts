@@ -150,11 +150,17 @@ export class Collection<T extends BaseDocument> {
   getQueryCache(): QueryCache<T> { return this.queryCache; }
 
   find(filterOrMango?: import('./types').QueryInput<T>, options?: QueryOptions<T>): Query<T> {
-    const cached = this.queryCache.get(filterOrMango, options);
-    if (cached) return cached;
+    // Only cache static queries with provided filterOrMango/options.
+    // Unparameterized find() calls are entry points for mutable method chaining (Query Builder).
+    if (filterOrMango !== undefined || options !== undefined) {
+      const cached = this.queryCache.get(filterOrMango, options);
+      if (cached) return cached;
+    }
 
     const query = new Query<T>(this, filterOrMango, options);
-    this.queryCache.set(query, filterOrMango, options);
+    if (filterOrMango !== undefined || options !== undefined) {
+      this.queryCache.set(query, filterOrMango, options);
+    }
     return query;
   }
 

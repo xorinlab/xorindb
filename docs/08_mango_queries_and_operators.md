@@ -161,3 +161,33 @@ const topScorers = await players.find({
   }
 }).exec();
 ```
+
+---
+
+## 6. Fluent Query Builder (`.where(field)...`)
+Instead of passing raw Mango JSON objects, XorinDB supports fluent, chainable method syntax inspired by RxDB Query Builder:
+
+```typescript
+// Chain range and equality operators on multiple fields
+const premiumItems = await products.find()
+  .where('price').gt(50).lte(200)
+  .where('inStock').eq(true)
+  .where('tags').in(['tech', 'gadget'])
+  .where('vendor.name').regex('^Apple', 'i')
+  .sort({ price: 'asc' })
+  .limit(10)
+  .exec();
+
+// Works seamlessly on single-doc queries
+const singleItem = await products.findOne()
+  .where('rating').gte(4.5)
+  .where('vendor.city').eq('Tokyo')
+  .exec();
+
+// Reactive subscriptions with fluent builder
+const unsub = products.find()
+  .where('price').lt(100)
+  .$.subscribe((items) => {
+    console.log('Affordable products in real-time:', items);
+  });
+```

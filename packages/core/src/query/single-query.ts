@@ -1,10 +1,11 @@
-import { BaseDocument, DocumentWithMeta, FilterQuery, MangoQuery, QueryInput, QueryOptions } from '../types';
+import { BaseDocument, BsonTypeName, DocumentWithMeta, FilterQuery, QueryInput, QueryOptions } from '../types';
 import { Collection } from '../collection';
 import { Query } from './query';
+import { IQueryBuilder } from './builder-state';
 
 export type SingleDocSubscriber<T> = (data: DocumentWithMeta<T> | null) => void;
 
-export class SingleDocQuery<T extends BaseDocument> {
+export class SingleDocQuery<T extends BaseDocument> implements IQueryBuilder<T, SingleDocQuery<T>> {
   private query: Query<T>;
   private collection: Collection<T>;
 
@@ -19,8 +20,83 @@ export class SingleDocQuery<T extends BaseDocument> {
     }
   }
 
-  where(filter: FilterQuery<T>): this {
-    this.query.where(filter);
+  where(fieldOrFilter: string | FilterQuery<T>): this {
+    this.query.where(fieldOrFilter);
+    return this;
+  }
+
+  eq(value: unknown): this {
+    this.query.eq(value);
+    return this;
+  }
+
+  equals(value: unknown): this {
+    this.query.equals(value);
+    return this;
+  }
+
+  ne(value: unknown): this {
+    this.query.ne(value);
+    return this;
+  }
+
+  gt(value: number | string): this {
+    this.query.gt(value);
+    return this;
+  }
+
+  gte(value: number | string): this {
+    this.query.gte(value);
+    return this;
+  }
+
+  lt(value: number | string): this {
+    this.query.lt(value);
+    return this;
+  }
+
+  lte(value: number | string): this {
+    this.query.lte(value);
+    return this;
+  }
+
+  in(values: unknown[]): this {
+    this.query.in(values);
+    return this;
+  }
+
+  nin(values: unknown[]): this {
+    this.query.nin(values);
+    return this;
+  }
+
+  regex(pattern: string | RegExp, options?: string): this {
+    this.query.regex(pattern, options);
+    return this;
+  }
+
+  exists(exists: boolean = true): this {
+    this.query.exists(exists);
+    return this;
+  }
+
+  type(typeName: BsonTypeName | string): this {
+    this.query.type(typeName);
+    return this;
+  }
+
+  size(len: number): this {
+    this.query.size(len);
+    return this;
+  }
+
+  all(values: unknown[]): this {
+    this.query.all(values);
+    return this;
+  }
+
+  elemMatch(condition: Record<string, unknown> | FilterQuery<unknown>): this {
+    this.query.elemMatch(condition);
     return this;
   }
 

@@ -1,13 +1,14 @@
-import { BaseDocument, ChangeEvent, DocumentWithMeta, FilterQuery, MangoQuery, QueryInput, QueryOptions } from '../types';
+import { BaseDocument, BsonTypeName, ChangeEvent, DocumentWithMeta, FilterQuery, MangoQuery, QueryInput, QueryOptions } from '../types';
 import { Collection } from '../collection';
 import { calculateEventReduce } from './event-reduce';
 import { matchQuery, applySortAndPagination } from './matcher';
+import { IQueryBuilder, QueryFilterState } from './builder-state';
 
 export type QuerySubscriber<T> = (data: DocumentWithMeta<T>[]) => void;
 
-export class Query<T extends BaseDocument> {
+export class Query<T extends BaseDocument> implements IQueryBuilder<T, Query<T>> {
   private collection: Collection<T>;
-  private filter?: FilterQuery<T>;
+  private filterState: QueryFilterState<T> = new QueryFilterState<T>();
   private options?: QueryOptions<T>;
   private subscribers: Set<QuerySubscriber<T>> = new Set();
   private unbindEvent?: () => void;
@@ -19,20 +20,94 @@ export class Query<T extends BaseDocument> {
     // Detect Mango query object ({ selector, sort, limit, skip })
     if (filterOrMango && typeof filterOrMango === 'object' && 'selector' in filterOrMango) {
       const mango = filterOrMango as MangoQuery<T>;
-      this.filter = mango.selector;
+      this.filterState.setFilter(mango.selector);
       this.options = {
         sort: mango.sort ?? options?.sort,
         limit: mango.limit ?? options?.limit,
         skip: mango.skip ?? options?.skip
       };
     } else {
-      this.filter = filterOrMango as FilterQuery<T>;
+      this.filterState.setFilter(filterOrMango as FilterQuery<T>);
       this.options = options;
     }
   }
 
-  where(filter: FilterQuery<T>): this {
-    this.filter = { ...this.filter, ...filter };
+  where(fieldOrFilter: string | FilterQuery<T>): this {
+    this.filterState.where(fieldOrFilter);
+    return this;
+  }
+
+  eq(value: unknown): this {
+    this.filterState.addCondition('$eq', value);
+    return this;
+  }
+
+  equals(value: unknown): this {
+    return this.eq(value);
+  }
+
+  ne(value: unknown): this {
+    this.filterState.addCondition('$ne', value);
+    return this;
+  }
+
+  gt(value: number | string): this {
+    this.filterState.addCondition('$gt', value);
+    return this;
+  }
+
+  gte(value: number | string): this {
+    this.filterState.addCondition('$gte', value);
+    return this;
+  }
+
+  lt(value: number | string): this {
+    this.filterState.addCondition('$lt', value);
+    return this;
+  }
+
+  lte(value: number | string): this {
+    this.filterState.addCondition('$lte', value);
+    return this;
+  }
+
+  in(values: unknown[]): this {
+    this.filterState.addCondition('$in', values);
+    return this;
+  }
+
+  nin(values: unknown[]): this {
+    this.filterState.addCondition('$nin', values);
+    return this;
+  }
+
+  regex(pattern: string | RegExp, options?: string): this {
+    this.filterState.addCondition('$regex', pattern, options ? { $options: options } : undefined);
+    return this;
+  }
+
+  exists(exists: boolean = true): this {
+    this.filterState.addCondition('$exists', exists);
+    return this;
+  }
+
+  type(typeName: BsonTypeName | string): this {
+    this.filterState.addCondition('$type', typeName);
+    return this;
+  }
+
+  size(len: number): this {
+    this.filterState.addCondition('$size', len);
+    return this;
+  }
+
+  all(values: unknown[]): this {
+    this.filterState.addCondition('$all', values);
+    return this;
+  }
+
+  elemMatch(condition: Record<string, unknown> | FilterQuery<unknown>): this {
+    this.filterState.addCondition('$elemMatch', condition);
     return this;
   }
 
@@ -75,7 +150,8 @@ export class Query<T extends BaseDocument> {
         )
       : decompressedDocs;
 
-    const matched = allDocs.filter(doc => matchQuery(doc, this.filter));
+    const filter = this.filterState.getFilter();
+    const matched = allDocs.filter(doc => matchQuery(doc, filter));
     const sorted = applySortAndPagination(matched, this.options);
     this.cachedResult = sorted;
     return sorted;
@@ -146,7 +222,7 @@ export class Query<T extends BaseDocument> {
           const decision = calculateEventReduce(
             this.cachedResult,
             event,
-            this.filter,
+            this.filterState.getFilter(),
             this.options
           );
 
