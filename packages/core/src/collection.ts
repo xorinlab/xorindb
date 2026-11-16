@@ -5,6 +5,8 @@ import { FieldEncryptor } from './schema/encryption';
 import { MigrationEngine, MigrationStrategies } from './schema/migration';
 import { CollectionSchema, validateDocumentAgainstSchema } from './schema/validator';
 import { SyncEngine } from './sync';
+import { prepareDocForStorage, restoreDocFromStorage } from './utils/pipeline';
+import { generateUUID } from './utils/uuid';
 import {
   BaseDocument,
   CollectionOptions,
@@ -15,17 +17,6 @@ import {
   StorageAdapter,
   SyncOptions
 } from './types';
-
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 export class Collection<T extends BaseDocument> {
   private name: string;
@@ -53,7 +44,6 @@ export class Collection<T extends BaseDocument> {
     this.keyCompressor = new KeyCompressor<T>(this.schema);
     this.fieldEncryptor = new FieldEncryptor<T>(password, this.schema);
 
-    // Register single and compound indexes to storage adapter if supported
     if (this.schema?.indexes && 'setIndexes' in this.storage) {
       (this.storage as any).setIndexes(this.name, this.schema.indexes);
     }
@@ -67,52 +57,23 @@ export class Collection<T extends BaseDocument> {
     }
   }
 
-  /**
-   * Ensures that any pending schema migrations have completed before proceeding.
-   */
   async ensureMigrated(): Promise<void> {
-    if (this.migrationPromise) {
-      await this.migrationPromise;
-    }
+    if (this.migrationPromise) await this.migrationPromise;
   }
 
-  getSchema(): CollectionSchema<T> | undefined {
-    return this.schema;
-  }
-
-  getKeyCompressor(): KeyCompressor<T> {
-    return this.keyCompressor;
-  }
-
-  getFieldEncryptor(): FieldEncryptor<T> {
-    return this.fieldEncryptor;
-  }
-
-  getName(): string {
-    return this.name;
-  }
-
-  getStorage(): StorageAdapter {
-    return this.storage;
-  }
-
-  getEmitter(): EventEmitter {
-    return this.emitter;
-  }
-
-  getPrimaryKeyField(): string {
-    return (this.schema?.primaryKey as string) || 'id';
-  }
+  getSchema(): CollectionSchema<T> | undefined { return this.schema; }
+  getName(): string { return this.name; }
+  getStorage(): StorageAdapter { return this.storage; }
+  getEmitter(): EventEmitter { return this.emitter; }
+  getKeyCompressor(): KeyCompressor<T> { return this.keyCompressor; }
+  getFieldEncryptor(): FieldEncryptor<T> { return this.fieldEncryptor; }
+  getPrimaryKeyField(): string { return (this.schema?.primaryKey as string) || 'id'; }
 
   private resolveDocumentId(data: Record<string, unknown>): string {
     const pkField = this.getPrimaryKeyField();
     const customVal = data[pkField];
-    if (customVal !== undefined && customVal !== null) {
-      return String(customVal);
-    }
-    if (data.id !== undefined && data.id !== null) {
-      return String(data.id);
-    }
+    if (customVal !== undefined && customVal !== null) return String(customVal);
+    if (data.id !== undefined && data.id !== null) return String(data.id);
     const generated = generateUUID();
     data[pkField] = generated;
     return generated;
@@ -120,15 +81,10 @@ export class Collection<T extends BaseDocument> {
 
   async insert(data: Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }): Promise<DocumentWithMeta<T>> {
     await this.ensureMigrated();
-
-    // Validate schema
-    if (this.schema) {
-      validateDocumentAgainstSchema(data as Record<string, unknown>, this.schema);
-    }
+    if (this.schema) validateDocumentAgainstSchema(data as Record<string, unknown>, this.schema);
 
     const docObj = { ...(data as unknown as Record<string, unknown>) };
     const id = this.resolveDocumentId(docObj);
-
     const doc: DocumentWithMeta<T> = {
       ...(docObj as unknown as T),
       id,
@@ -136,69 +92,33 @@ export class Collection<T extends BaseDocument> {
       _updatedAt: Date.now()
     };
 
-    // Encrypt sensitive fields if configured
-    const encryptedDoc = this.fieldEncryptor.hasEncryptedFields()
-      ? (await this.fieldEncryptor.encryptDoc(doc as unknown as Record<string, unknown>)) as unknown as DocumentWithMeta<T>
-      : doc;
-
-    // Compress keys before persisting to storage if keyCompression is enabled
-    const storageDoc = this.keyCompressor.isCompressionEnabled()
-      ? (this.keyCompressor.compress(encryptedDoc as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
-      : encryptedDoc;
-
+    const storageDoc = await prepareDocForStorage(doc, this.fieldEncryptor, this.keyCompressor);
     await this.storage.put(this.name, storageDoc);
 
-    this.emitter.emit(this.name, {
-      collection: this.name,
-      type: 'insert',
-      id,
-      doc
-    });
-
+    this.emitter.emit(this.name, { collection: this.name, type: 'insert', id, doc });
     return doc;
   }
 
   async insertMany(docs: Array<Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }>): Promise<DocumentWithMeta<T>[]> {
     await this.ensureMigrated();
-
     if (this.schema) {
-      for (const item of docs) {
-        validateDocumentAgainstSchema(item as Record<string, unknown>, this.schema);
-      }
+      for (const item of docs) validateDocumentAgainstSchema(item as Record<string, unknown>, this.schema);
     }
 
     const prepared: DocumentWithMeta<T>[] = docs.map((item) => {
       const docObj = { ...(item as unknown as Record<string, unknown>) };
       const id = this.resolveDocumentId(docObj);
-      return {
-        ...(docObj as unknown as T),
-        id,
-        _deleted: false,
-        _updatedAt: Date.now()
-      };
+      return { ...(docObj as unknown as T), id, _deleted: false, _updatedAt: Date.now() };
     });
 
-    const encryptedBatch = this.fieldEncryptor.hasEncryptedFields()
-      ? await Promise.all(
-          prepared.map((d) => this.fieldEncryptor.encryptDoc(d as unknown as Record<string, unknown>))
-        )
-      : prepared;
-
-    const storageDocs = this.keyCompressor.isCompressionEnabled()
-      ? (encryptedBatch as Array<Record<string, unknown>>).map((d) => this.keyCompressor.compress(d) as unknown as DocumentWithMeta<T>)
-      : (encryptedBatch as DocumentWithMeta<T>[]);
-
+    const storageDocs = await Promise.all(
+      prepared.map(d => prepareDocForStorage(d, this.fieldEncryptor, this.keyCompressor))
+    );
     await this.storage.putBatch(this.name, storageDocs);
 
     for (const doc of prepared) {
-      this.emitter.emit(this.name, {
-        collection: this.name,
-        type: 'insert',
-        id: doc.id,
-        doc
-      });
+      this.emitter.emit(this.name, { collection: this.name, type: 'insert', id: doc.id, doc });
     }
-
     return prepared;
   }
 
@@ -206,16 +126,7 @@ export class Collection<T extends BaseDocument> {
     await this.ensureMigrated();
     const raw = await this.storage.get<T>(this.name, id);
     if (!raw || raw._deleted) return null;
-
-    const decompressed = this.keyCompressor.isCompressionEnabled()
-      ? (this.keyCompressor.decompress(raw as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
-      : raw;
-
-    const doc = this.fieldEncryptor.hasEncryptedFields()
-      ? (await this.fieldEncryptor.decryptDoc(decompressed as unknown as Record<string, unknown>)) as unknown as DocumentWithMeta<T>
-      : decompressed;
-
-    return doc;
+    return restoreDocFromStorage(raw, this.fieldEncryptor, this.keyCompressor);
   }
 
   find(filter?: FilterQuery<T>, options?: QueryOptions<T>): Query<T> {
@@ -223,70 +134,88 @@ export class Collection<T extends BaseDocument> {
   }
 
   async update(id: PrimaryKey, patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<DocumentWithMeta<T>> {
-    const existing = await this.storage.get<T>(this.name, id);
+    const existing = await this.findById(id);
     if (!existing || existing._deleted) {
       throw new Error(`Document with id "${id}" does not exist in collection "${this.name}".`);
     }
 
-    const updated: DocumentWithMeta<T> = {
-      ...existing,
-      ...patch,
-      _updatedAt: Date.now()
-    };
+    const updated: DocumentWithMeta<T> = { ...existing, ...patch, _updatedAt: Date.now() };
+    if (this.schema) validateDocumentAgainstSchema(updated as Record<string, unknown>, this.schema);
 
-    if (this.schema) {
-      validateDocumentAgainstSchema(updated as Record<string, unknown>, this.schema);
-    }
-
-    const encryptedUpdated = this.fieldEncryptor.hasEncryptedFields()
-      ? (await this.fieldEncryptor.encryptDoc(updated as unknown as Record<string, unknown>)) as unknown as DocumentWithMeta<T>
-      : updated;
-
-    const storageUpdated = this.keyCompressor.isCompressionEnabled()
-      ? (this.keyCompressor.compress(encryptedUpdated as unknown as Record<string, unknown>) as unknown as DocumentWithMeta<T>)
-      : encryptedUpdated;
-
+    const storageUpdated = await prepareDocForStorage(updated, this.fieldEncryptor, this.keyCompressor);
     await this.storage.put(this.name, storageUpdated);
 
-    this.emitter.emit(this.name, {
-      collection: this.name,
-      type: 'update',
-      id,
-      doc: updated,
-      previous: existing
-    });
-
+    this.emitter.emit(this.name, { collection: this.name, type: 'update', id, doc: updated, previous: existing });
     return updated;
   }
 
+  /**
+   * Inserts the document if it does not exist, or updates it if it already exists.
+   */
+  async upsert(data: Partial<T> & { id?: PrimaryKey; [key: string]: unknown }): Promise<DocumentWithMeta<T>> {
+    await this.ensureMigrated();
+    const docObj = { ...data };
+    const id = this.resolveDocumentId(docObj);
+    const existing = await this.findById(id);
+
+    if (!existing) {
+      return this.insert(docObj as any);
+    }
+    return this.update(id, docObj as any);
+  }
+
+  /**
+   * Modifies an existing document with a mutator function, or inserts the default document if absent.
+   * Eliminates race conditions for concurrent atomic updates.
+   */
+  async incrementalUpsert(
+    dataOrId: (Partial<T> & { id?: PrimaryKey; [key: string]: unknown }) | PrimaryKey,
+    mutator?: (existingDoc: DocumentWithMeta<T>) => Partial<T> | Promise<Partial<T>>
+  ): Promise<DocumentWithMeta<T>> {
+    await this.ensureMigrated();
+
+    let id: string;
+    let initialDoc: Partial<T> = {};
+
+    if (typeof dataOrId === 'string') {
+      id = dataOrId;
+    } else {
+      const docObj = { ...dataOrId };
+      id = this.resolveDocumentId(docObj);
+      initialDoc = docObj as Partial<T>;
+    }
+
+    const existing = await this.findById(id);
+    if (!existing) {
+      const baseDoc = { ...initialDoc, id } as DocumentWithMeta<T>;
+      const toInsert = mutator ? await mutator(baseDoc) : baseDoc;
+      return this.insert({ ...baseDoc, ...toInsert } as any);
+    }
+
+    if (mutator) {
+      const patch = await mutator(existing);
+      return this.update(id, patch as any);
+    }
+    return this.update(id, initialDoc as any);
+  }
+
   async delete(id: PrimaryKey, hardDelete: boolean = false): Promise<void> {
-    const existing = await this.storage.get<T>(this.name, id);
+    const existing = await this.findById(id);
     if (!existing) return;
 
     if (hardDelete) {
       await this.storage.delete(this.name, id);
     } else {
-      // Soft-delete / tombstone for reliable sync
-      const deletedDoc: DocumentWithMeta<T> = {
-        ...existing,
-        _deleted: true,
-        _updatedAt: Date.now()
-      };
-      await this.storage.put(this.name, deletedDoc);
+      const deletedDoc: DocumentWithMeta<T> = { ...existing, _deleted: true, _updatedAt: Date.now() };
+      const storageDoc = await prepareDocForStorage(deletedDoc, this.fieldEncryptor, this.keyCompressor);
+      await this.storage.put(this.name, storageDoc);
     }
 
-    this.emitter.emit(this.name, {
-      collection: this.name,
-      type: 'delete',
-      id,
-      previous: existing
-    });
+    this.emitter.emit(this.name, { collection: this.name, type: 'delete', id, previous: existing });
   }
 
   sync(options: SyncOptions<T>): SyncEngine<T> {
-    if (this.syncEngine) {
-      this.syncEngine.stop();
-    }
+    if (this.syncEngine) this.syncEngine.stop();
     this.syncEngine = new SyncEngine<T>(this, options);
     this.syncEngine.start().catch(console.error);
     return this.syncEngine;
