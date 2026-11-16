@@ -98,4 +98,23 @@ describe('RxDocument Instance & Reactive Getters', () => {
 
     unsub();
   });
+
+  it('should support incrementalPatch() to mutate document and update database', async () => {
+    const tasks = db.collection<{ id?: string; title: string; done: boolean; priority: number }>('tasks');
+    const raw = await tasks.insert({ id: 't1', title: 'Task 1', done: false, priority: 1 });
+
+    const doc = createRxDocument(tasks, raw);
+
+    await doc.incrementalPatch({ done: true, priority: 3 });
+
+    // In-memory document should be updated
+    expect(doc.done).toBe(true);
+    expect(doc.priority).toBe(3);
+    expect(doc.title).toBe('Task 1');
+
+    // Storage should also be updated
+    const fetched = await tasks.findById('t1');
+    expect(fetched?.done).toBe(true);
+    expect(fetched?.priority).toBe(3);
+  });
 });

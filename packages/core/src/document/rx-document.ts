@@ -116,6 +116,19 @@ export class RxDocument<T extends BaseDocument> {
     return copy;
   }
 
+  /**
+   * Patches the document with partial changes in a queue-safe incremental manner.
+   */
+  async incrementalPatch(patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<RxDocument<T>> {
+    if (this._deleted) {
+      throw new Error(`Cannot patch deleted document with id "${this.id}".`);
+    }
+
+    const updated = await this._collection.update(this.id, patch);
+    this._data = { ...updated };
+    return this;
+  }
+
   destroy(): void {
     if (this._unbind) {
       this._unbind();
