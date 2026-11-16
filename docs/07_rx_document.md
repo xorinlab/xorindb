@@ -83,10 +83,25 @@ console.log(doc.deleted); // true
 ## 5. Exporting Plain JSON (`toJSON` & `toMutableJSON`)
 Essential when passing document data to React/Vue state or REST APIs:
 
+### `doc.toJSON(withMetaFields = true)`
+Returns an **immutable, deeply frozen (`Object.freeze`)** plain JavaScript object:
 ```typescript
-// Includes metadata (id, _deleted, _updatedAt)
+// Includes metadata (id, _deleted, _updatedAt) and is frozen
 const plain = doc.toJSON();
+// plain.name = 'Hacked'; // Throws TypeError in strict mode
 
-// Pure business payload without internal metadata
+// Strips metadata fields while remaining frozen
+const pureData = doc.toJSON(false);
+console.log(pureData._deleted); // undefined
+```
+
+### `doc.toMutableJSON(withMetaFields = false)`
+Returns a **deep-cloned, freely mutable** plain JavaScript object:
+```typescript
+// Pure business payload without internal metadata (ready for form binding or mutations)
 const clean = doc.toMutableJSON();
+clean.name = 'New Name'; // Safe to mutate freely without affecting RxDocument
+
+// Includes metadata if explicitly requested
+const mutableWithMeta = doc.toMutableJSON(true);
 ```

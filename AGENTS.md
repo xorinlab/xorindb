@@ -31,7 +31,8 @@ xorindb/
 │   ├── 03_schema_indexing_and_security.md # JSON schema, custom PK, indexes, AES-GCM
 │   ├── 04_reactivity_and_event_reduce.md # Live queries, EventReduce algorithm, multi-tab
 │   ├── 05_http_replication_and_sync.md # Pull/Push, checkpoints, SSE live stream
-│   └── 06_framework_integrations.md # React 18/19, Vue 3, Next.js SSR, Svelte
+│   ├── 06_framework_integrations.md # React 18/19, Vue 3, Next.js SSR, Svelte
+│   └── 07_rx_document.md      # RxDocument proxy, mutations, getters, JSON export
 ├── packages/
 │   └── core/                  # Main package published as 'xorindb'
 │       ├── package.json

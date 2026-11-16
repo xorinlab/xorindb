@@ -204,4 +204,22 @@ describe('RxDocument Instance & Reactive Getters', () => {
     expect(mutableWithMeta._deleted).toBe(false);
     expect(Object.isFrozen(mutableWithMeta)).toBe(false);
   });
+
+  it('should throw error when trying to patch or modify an already deleted document', async () => {
+    const todos = db.collection<{ id?: string; title: string }>('todos');
+    const raw = await todos.insert({ id: 'todo1', title: 'Buy milk' });
+    const doc = createRxDocument(todos, raw);
+
+    await doc.remove();
+
+    // Expect incrementalPatch to throw
+    await expect(doc.incrementalPatch({ title: 'New title' })).rejects.toThrow(
+      'Cannot patch deleted document'
+    );
+
+    // Expect modify to throw
+    await expect(doc.modify((data) => ({ ...data, title: 'New title' }))).rejects.toThrow(
+      'Cannot modify deleted document'
+    );
+  });
 });
