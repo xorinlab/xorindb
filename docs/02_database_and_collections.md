@@ -251,3 +251,38 @@ const nonBeta = await articles.find({
   title: { $not: { $regex: /beta/i } }
 }).exec();
 ```
+
+---
+
+### Existence (`$exists`) & Type Checking (`$type`)
+Filter documents based on whether a property exists or matches a specific JSON/BSON runtime data type:
+
+```typescript
+// 1. Check if a property is defined ($exists: true / false)
+const usersWithAge = await users.find({
+  age: { $exists: true }
+}).exec();
+
+// 2. Check existence on nested paths
+const configuredUsers = await users.find({
+  'settings.theme': { $exists: true }
+}).exec();
+
+// 3. Runtime data type inspection with $type
+// Supports 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' | 'undefined'
+const arrayTags = await users.find({
+  tags: { $type: 'array' }
+}).exec();
+
+const nullEmails = await users.find({
+  email: { $type: 'null' }
+}).exec();
+
+// 4. Combine $exists and $type with logical operators
+const verifiedProfiles = await users.find({
+  $and: [
+    { age: { $gte: 18 } },
+    { email: { $exists: true, $type: 'string' } }
+  ]
+}).exec();
+```

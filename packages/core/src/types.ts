@@ -13,6 +13,15 @@ export type DocumentWithMeta<T> = T & {
   _updatedAt: number;
 };
 
+export type BsonTypeName =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'object'
+  | 'array'
+  | 'null'
+  | 'undefined';
+
 export type FilterQuery<T> = {
   [P in keyof T]?: T[P] | RegExp | {
     $eq?: unknown;
@@ -26,6 +35,8 @@ export type FilterQuery<T> = {
     $not?: unknown;
     $regex?: string | RegExp;
     $options?: string;
+    $exists?: boolean;
+    $type?: BsonTypeName | string;
   };
 } & {
   $and?: FilterQuery<T>[];

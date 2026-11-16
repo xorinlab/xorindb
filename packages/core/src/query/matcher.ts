@@ -18,6 +18,13 @@ export function getNestedProperty(obj: unknown, path: string): unknown {
   return current;
 }
 
+function getFieldType(val: unknown): string {
+  if (val === null) return 'null';
+  if (val === undefined) return 'undefined';
+  if (Array.isArray(val)) return 'array';
+  return typeof val;
+}
+
 function evaluateFieldCondition(docValue: unknown, condition: unknown): boolean {
   if (condition instanceof RegExp) {
     return typeof docValue === 'string' && condition.test(docValue);
@@ -25,6 +32,15 @@ function evaluateFieldCondition(docValue: unknown, condition: unknown): boolean 
 
   if (condition !== null && typeof condition === 'object' && !Array.isArray(condition)) {
     const cond = condition as Record<string, unknown>;
+    if ('$exists' in cond) {
+      const exists = docValue !== undefined;
+      if (Boolean(cond.$exists) !== exists) return false;
+    }
+    if ('$type' in cond) {
+      const expectedType = String(cond.$type).toLowerCase();
+      const actualType = getFieldType(docValue);
+      if (actualType !== expectedType) return false;
+    }
     if ('$eq' in cond && docValue !== cond.$eq) return false;
     if ('$ne' in cond && docValue === cond.$ne) return false;
     if ('$gt' in cond && !(typeof docValue === typeof cond.$gt && (docValue as number) > (cond.$gt as number))) return false;
