@@ -47,7 +47,23 @@ await issues.findOne('issue-101').remove();
 
 ---
 
-## 3. EventReduce Query Optimization
+## 3. Query Caching & De-duplication
+To avoid redundant object allocations, duplicate event subscriptions, and memory bloat, XorinDB maintains an internal **Query Cache**:
+
+```typescript
+// Identical queries reuse the same in-memory instance
+const q1 = issues.find({ status: 'todo' });
+const q2 = issues.find({ status: 'todo' });
+
+console.log(q1 === q2); // true! (Zero memory duplication)
+
+// Cache can be accessed or cleared if needed
+issues.getQueryCache().clear();
+```
+
+---
+
+## 4. EventReduce Query Optimization
 Traditional reactive query engines re-run complete storage scans on every database write. XorinDB implements the **EventReduce** algorithm to optimize UI responsiveness and battery efficiency:
 
 ### EventReduce Decision Flow:
@@ -62,7 +78,7 @@ Traditional reactive query engines re-run complete storage scans on every databa
 
 ---
 
-## 4. Cross-Tab Reactivity
+## 5. Cross-Tab Reactivity
 XorinDB utilizes native browser `BroadcastChannel` instances (`xorindb_${dbName}`). When tab A performs a mutation:
 1. Tab A writes to IndexedDB and emits an event.
 2. Event is broadcast across open browser windows.

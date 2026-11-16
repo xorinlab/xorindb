@@ -1,6 +1,7 @@
 import { EventEmitter } from './events/emitter';
 import { Query } from './query/query';
 import { SingleDocQuery } from './query/single-query';
+import { QueryCache } from './query/cache';
 import { KeyCompressor } from './schema/compression';
 import { FieldEncryptor } from './schema/encryption';
 import { MigrationEngine, MigrationStrategies } from './schema/migration';
@@ -31,6 +32,7 @@ export class Collection<T extends BaseDocument> {
   private keyCompressor: KeyCompressor<T>;
   private fieldEncryptor: FieldEncryptor<T>;
   private hooks: HookManager<T> = new HookManager<T>();
+  private queryCache: QueryCache<T> = new QueryCache<T>();
   private syncEngine: SyncEngine<T> | null = null;
   private migrationPromise: Promise<void> | null = null;
 
@@ -145,8 +147,15 @@ export class Collection<T extends BaseDocument> {
     return restoreDocFromStorage(raw, this.fieldEncryptor, this.keyCompressor);
   }
 
+  getQueryCache(): QueryCache<T> { return this.queryCache; }
+
   find(filterOrMango?: import('./types').QueryInput<T>, options?: QueryOptions<T>): Query<T> {
-    return new Query<T>(this, filterOrMango, options);
+    const cached = this.queryCache.get(filterOrMango, options);
+    if (cached) return cached;
+
+    const query = new Query<T>(this, filterOrMango, options);
+    this.queryCache.set(query, filterOrMango, options);
+    return query;
   }
 
   /**
