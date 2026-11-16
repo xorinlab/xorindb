@@ -193,9 +193,18 @@ const premiumItems = await products.find()
 - `.size(length)` : Matches if array field has the exact length.
 - `.elemMatch(condition)` : Matches if at least one array element satisfies object or operator conditions.
 
+### Chained Pattern Matching Reference:
+- `.regex(pattern, options?)` : Matches string fields using regex string (with optional flags e.g. `'i'`) or native JavaScript `RegExp` object.
+
 // Closed interval example (20 <= temperature <= 30)
 const comfortable = await sensors.find()
   .where('temperature').gte(20).lte(30)
+  .exec();
+
+// Pattern matching fluent example
+const techArticles = await posts.find()
+  .where('title').regex('^react', 'i')
+  .where('author.domain').regex(/\.io$/)
   .exec();
 
 // Set & Array fluent example
