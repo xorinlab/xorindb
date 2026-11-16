@@ -158,6 +158,27 @@ export class RxDocument<T extends BaseDocument> {
     return this.modify(mutator);
   }
 
+  /**
+   * Deletes the document from the collection (soft-delete / tombstone by default).
+   */
+  async remove(hardDelete: boolean = false): Promise<RxDocument<T>> {
+    if (this._deleted) {
+      return this;
+    }
+
+    await this._collection.delete(this.id, hardDelete);
+    this._deleted = true;
+    this._data._deleted = true;
+    return this;
+  }
+
+  /**
+   * Incrementally removes the document sequentially. Alias to remove.
+   */
+  async incrementalRemove(hardDelete: boolean = false): Promise<RxDocument<T>> {
+    return this.remove(hardDelete);
+  }
+
   destroy(): void {
     if (this._unbind) {
       this._unbind();

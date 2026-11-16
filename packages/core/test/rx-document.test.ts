@@ -151,4 +151,25 @@ describe('RxDocument Instance & Reactive Getters', () => {
     expect(inStorage?.count).toBe(30);
     expect(inStorage?.tags).toEqual(['initial', 'step1', 'step2']);
   });
+
+  it('should support remove() and incrementalRemove() to soft-delete document', async () => {
+    const items = db.collection<{ id?: string; name: string }>('items');
+    const raw = await items.insert({ id: 'item1', name: 'Notebook' });
+
+    const doc = createRxDocument(items, raw);
+
+    expect(doc.deleted).toBe(false);
+
+    await doc.remove();
+
+    expect(doc.deleted).toBe(true);
+
+    // Finding document now returns null because it is soft-deleted
+    const found = await items.findById('item1');
+    expect(found).toBeNull();
+
+    // Storage still keeps tombstone for replication
+    const rawInStorage = await db.getStorage().get<any>('items', 'item1');
+    expect(rawInStorage?._deleted).toBe(true);
+  });
 });
