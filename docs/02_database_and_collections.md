@@ -159,3 +159,44 @@ await todos.delete('t1');
 // Hard delete (purges completely from local storage)
 await todos.delete('t1', true);
 ```
+
+---
+
+### Logical Query Operators (`$or`, `$and`, `$nor`, `$not`)
+XorinDB supports MongoDB/Mango-compatible logical operators for advanced query branching:
+
+```typescript
+// $or: matches if any condition is true
+const urgentOrPending = await todos.find({
+  $or: [
+    { priority: { $gt: 3 } },
+    { status: 'pending' }
+  ]
+}).exec();
+
+// $nor: matches if none of the conditions are true
+const activeItems = await todos.find({
+  $nor: [
+    { status: 'done' },
+    { archived: true }
+  ]
+}).exec();
+
+// $and: matches if all conditions are satisfied
+const highPriorityActive = await todos.find({
+  $and: [
+    { priority: { $gte: 4 } },
+    { status: 'active' }
+  ]
+}).exec();
+
+// $not: top-level inverted condition or field-level operator
+const notCompleted = await todos.find({
+  $not: { status: 'completed' }
+}).exec();
+
+// Field-level $not operator
+const nonThreeRating = await todos.find({
+  rating: { $not: { $eq: 3 } }
+}).exec();
+```

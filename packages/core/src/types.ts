@@ -23,7 +23,14 @@ export type FilterQuery<T> = {
     $lte?: number | string;
     $in?: unknown[];
     $nin?: unknown[];
+    $not?: unknown;
   };
+} & {
+  $and?: FilterQuery<T>[];
+  $or?: FilterQuery<T>[];
+  $nor?: FilterQuery<T>[];
+  $not?: FilterQuery<T>;
+  [key: string]: unknown;
 };
 
 export interface QueryOptions<T> {
