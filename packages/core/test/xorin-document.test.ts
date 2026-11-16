@@ -24,7 +24,7 @@ describe('XorinDocument Instance & Reactive Getters', () => {
     expect(doc.age).toBe(25);
     expect(doc.get('name')).toBe('Alice');
     expect(doc.toJSON().name).toBe('Alice');
-    expect(doc.toMutableJSON()._deleted).toBeUndefined();
+    expect((doc.toMutableJSON() as any)._deleted).toBeUndefined();
   });
 
   it('should reactively emit changes on whole document via doc.$', async () => {

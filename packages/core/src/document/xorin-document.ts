@@ -111,6 +111,10 @@ export class XorinDocument<T extends BaseDocument> {
    * If false, strips internal meta fields.
    * Freezes the returned object in accordance with immutable toJSON specification.
    */
+  toJSON(): DocumentWithMeta<T>;
+  toJSON(withMetaFields: true): DocumentWithMeta<T>;
+  toJSON(withMetaFields: false): T;
+  toJSON(withMetaFields: boolean): DocumentWithMeta<T> | T;
   toJSON(withMetaFields: boolean = true): DocumentWithMeta<T> | T {
     const copy = JSON.parse(JSON.stringify(this._data));
     if (!withMetaFields) {
@@ -125,6 +129,10 @@ export class XorinDocument<T extends BaseDocument> {
    * If withMetaFields is false (default), strips internal meta fields (_deleted, _updatedAt).
    * If true, includes all meta fields.
    */
+  toMutableJSON(): T;
+  toMutableJSON(withMetaFields: false): T;
+  toMutableJSON(withMetaFields: true): DocumentWithMeta<T>;
+  toMutableJSON(withMetaFields: boolean): T | DocumentWithMeta<T>;
   toMutableJSON(withMetaFields: boolean = false): T | DocumentWithMeta<T> {
     const copy = JSON.parse(JSON.stringify(this._data));
     if (!withMetaFields) {
