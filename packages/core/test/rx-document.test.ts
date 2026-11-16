@@ -172,4 +172,36 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const rawInStorage = await db.getStorage().get<any>('items', 'item1');
     expect(rawInStorage?._deleted).toBe(true);
   });
+
+  it('should support toJSON() and toMutableJSON() with withMetaFields option and immutability', async () => {
+    const users = db.collection<{ id?: string; name: string }>('users');
+    const raw = await users.insert({ id: 'u1', name: 'Alice' });
+    const doc = createRxDocument(users, raw);
+
+    // toJSON() returns frozen object with meta fields by default
+    const jsonWithMeta = doc.toJSON() as any;
+    expect(jsonWithMeta.name).toBe('Alice');
+    expect(jsonWithMeta._deleted).toBe(false);
+    expect(jsonWithMeta._updatedAt).toBeTypeOf('number');
+    expect(Object.isFrozen(jsonWithMeta)).toBe(true);
+
+    // toJSON(false) strips meta fields
+    const jsonWithoutMeta = doc.toJSON(false) as any;
+    expect(jsonWithoutMeta._deleted).toBeUndefined();
+    expect(jsonWithoutMeta._updatedAt).toBeUndefined();
+    expect(Object.isFrozen(jsonWithoutMeta)).toBe(true);
+
+    // toMutableJSON() returns mutable object without meta fields by default
+    const mutableObj = doc.toMutableJSON() as any;
+    expect(Object.isFrozen(mutableObj)).toBe(false);
+    expect(mutableObj._deleted).toBeUndefined();
+    // Freely mutating should not affect RxDocument
+    mutableObj.name = 'Locally Mutated';
+    expect(doc.name).toBe('Alice');
+
+    // toMutableJSON(true) includes meta fields
+    const mutableWithMeta = doc.toMutableJSON(true) as any;
+    expect(mutableWithMeta._deleted).toBe(false);
+    expect(Object.isFrozen(mutableWithMeta)).toBe(false);
+  });
 });

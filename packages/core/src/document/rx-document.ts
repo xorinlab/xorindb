@@ -105,14 +105,32 @@ export class RxDocument<T extends BaseDocument> {
     };
   }
 
-  toJSON(): DocumentWithMeta<T> {
-    return JSON.parse(JSON.stringify(this._data));
+  /**
+   * Returns a deep-cloned plain JavaScript object.
+   * If withMetaFields is true (default), includes id, _deleted, and _updatedAt.
+   * If false, strips internal meta fields.
+   * Freezes the returned object in accordance with RxDB immutable toJSON specification.
+   */
+  toJSON(withMetaFields: boolean = true): DocumentWithMeta<T> | T {
+    const copy = JSON.parse(JSON.stringify(this._data));
+    if (!withMetaFields) {
+      delete copy._deleted;
+      delete copy._updatedAt;
+    }
+    return Object.freeze(copy);
   }
 
-  toMutableJSON(): T {
+  /**
+   * Returns a deep-cloned, freely mutable plain JavaScript object.
+   * If withMetaFields is false (default), strips internal meta fields (_deleted, _updatedAt).
+   * If true, includes all meta fields.
+   */
+  toMutableJSON(withMetaFields: boolean = false): T | DocumentWithMeta<T> {
     const copy = JSON.parse(JSON.stringify(this._data));
-    delete copy._deleted;
-    delete copy._updatedAt;
+    if (!withMetaFields) {
+      delete copy._deleted;
+      delete copy._updatedAt;
+    }
     return copy;
   }
 
