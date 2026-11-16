@@ -37,6 +37,9 @@ export type FilterQuery<T> = {
     $options?: string;
     $exists?: boolean;
     $type?: BsonTypeName | string;
+    $size?: number;
+    $all?: unknown[];
+    $elemMatch?: Record<string, unknown> | FilterQuery<unknown>;
   };
 } & {
   $and?: FilterQuery<T>[];

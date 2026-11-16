@@ -32,7 +32,8 @@ xorindb/
 │   ├── 04_reactivity_and_event_reduce.md # Live queries, EventReduce algorithm, multi-tab
 │   ├── 05_http_replication_and_sync.md # Pull/Push, checkpoints, SSE live stream
 │   ├── 06_framework_integrations.md # React 18/19, Vue 3, Next.js SSR, Svelte
-│   └── 07_rx_document.md      # RxDocument proxy, mutations, getters, JSON export
+│   ├── 07_rx_document.md      # RxDocument proxy, mutations, getters, JSON export
+│   └── 08_mango_queries_and_operators.md # Mango syntax, $or, $regex, dot-notation, array ops
 ├── packages/
 │   └── core/                  # Main package published as 'xorindb'
 │       ├── package.json

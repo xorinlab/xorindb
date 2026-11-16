@@ -56,6 +56,26 @@ function evaluateFieldCondition(docValue: unknown, condition: unknown): boolean 
       const re = regexVal instanceof RegExp ? regexVal : new RegExp(String(regexVal), flags);
       if (!re.test(docValue)) return false;
     }
+    if ('$size' in cond) {
+      if (!Array.isArray(docValue) || docValue.length !== cond.$size) return false;
+    }
+    if ('$all' in cond && Array.isArray(cond.$all)) {
+      if (!Array.isArray(docValue)) return false;
+      for (const requiredItem of cond.$all) {
+        if (!docValue.includes(requiredItem)) return false;
+      }
+    }
+    if ('$elemMatch' in cond && cond.$elemMatch && typeof cond.$elemMatch === 'object') {
+      if (!Array.isArray(docValue)) return false;
+      const elemFilter = cond.$elemMatch as Record<string, unknown>;
+      const hasMatch = docValue.some((elem) => {
+        if (elem !== null && typeof elem === 'object') {
+          return matchQuery(elem as DocumentWithMeta<unknown>, elemFilter);
+        }
+        return evaluateFieldCondition(elem, elemFilter);
+      });
+      if (!hasMatch) return false;
+    }
     if ('$not' in cond && evaluateFieldCondition(docValue, cond.$not)) return false;
     return true;
   }
