@@ -128,6 +128,11 @@ export class IndexedDBStorageAdapter implements StorageAdapter {
     });
   }
 
+  async count(collection: string): Promise<number> {
+    const docs = await this.getAll(collection);
+    return docs.filter(d => !d._deleted).length;
+  }
+
   async put<T>(collection: string, doc: DocumentWithMeta<T>): Promise<void> {
     const db = await this.ensureCollection(collection);
     return new Promise((resolve, reject) => {

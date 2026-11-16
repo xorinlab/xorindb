@@ -150,6 +150,18 @@ export class Collection<T extends BaseDocument> {
   }
 
   /**
+   * Fast count of documents. If a filter is provided, counts matching documents.
+   * If no filter is provided, leverages the storage adapter's direct count.
+   */
+  async count(filter?: FilterQuery<T>): Promise<number> {
+    await this.ensureMigrated();
+    if (!filter && this.storage.count) {
+      return this.storage.count(this.name);
+    }
+    return this.find(filter).count();
+  }
+
+  /**
    * Find a single document by filter or primary key, returning a chainable SingleDocQuery.
    */
   findOne(filter?: FilterQuery<T> | PrimaryKey, options?: QueryOptions<T>): SingleDocQuery<T> {

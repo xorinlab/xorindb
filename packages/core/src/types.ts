@@ -62,6 +62,7 @@ export interface StorageAdapter {
   init(dbName: string, collections: string[]): Promise<void>;
   get<T>(collection: string, id: PrimaryKey): Promise<DocumentWithMeta<T> | null>;
   getAll<T>(collection: string): Promise<DocumentWithMeta<T>[]>;
+  count?(collection: string): Promise<number>;
   put<T>(collection: string, doc: DocumentWithMeta<T>): Promise<void>;
   putBatch<T>(collection: string, docs: DocumentWithMeta<T>[]): Promise<void>;
   delete(collection: string, id: PrimaryKey): Promise<void>;

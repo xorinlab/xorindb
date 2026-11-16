@@ -25,6 +25,15 @@ export class MemoryStorageAdapter implements StorageAdapter {
     return Array.from(store.values()).map(doc => JSON.parse(JSON.stringify(doc)));
   }
 
+  async count(collection: string): Promise<number> {
+    const store = this.getCollectionStore(collection);
+    let total = 0;
+    for (const doc of store.values()) {
+      if (!doc._deleted) total++;
+    }
+    return total;
+  }
+
   async put<T>(collection: string, doc: DocumentWithMeta<T>): Promise<void> {
     const store = this.getCollectionStore<T>(collection);
     store.set(doc.id, JSON.parse(JSON.stringify(doc)));

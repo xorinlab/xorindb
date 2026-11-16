@@ -74,6 +74,11 @@ export class Query<T extends BaseDocument> {
     return list.length > 0 ? list[0] : null;
   }
 
+  async count(): Promise<number> {
+    const list = await this.exec();
+    return list.length;
+  }
+
   private notifySubscribers(data: DocumentWithMeta<T>[]): void {
     this.cachedResult = data;
     for (const sub of this.subscribers) {
