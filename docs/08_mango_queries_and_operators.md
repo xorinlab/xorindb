@@ -196,9 +196,20 @@ const premiumItems = await products.find()
 ### Chained Pattern Matching Reference:
 - `.regex(pattern, options?)` : Matches string fields using regex string (with optional flags e.g. `'i'`) or native JavaScript `RegExp` object.
 
+### Chained Existence & Type Checking Reference:
+- `.exists(bool?)` : Checks if field is defined or undefined (defaults to `true`).
+- `.type(typeName)` : Matches runtime type (`'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' | 'undefined'`).
+
 // Closed interval example (20 <= temperature <= 30)
 const comfortable = await sensors.find()
   .where('temperature').gte(20).lte(30)
+  .exec();
+
+// Pattern, Existence & Type fluent example
+const verifiedActiveUsers = await members.find()
+  .where('age').type('number').gte(18)
+  .where('email').exists(true).type('string')
+  .where('preferences.notifications.emailAlerts').exists(true)
   .exec();
 
 // Pattern matching fluent example
