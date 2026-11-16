@@ -1,20 +1,28 @@
 # 04. Reactivity & EventReduce
 
-## 1. Live Queries (`subscribe`)
-Any query constructed with `.find()` can be subscribed to for real-time reactivity:
+## 1. Live Queries (`subscribe` & `.$`)
+Any query constructed with `.find()` or `.findOne()` can be subscribed to for real-time reactivity:
 
 ```typescript
+// Multi-document live query
 const query = issues.find(
   { status: 'todo' },
   { sort: { priority: 'desc' } }
 );
 
-const unsubscribe = query.subscribe((currentList) => {
+// Subscribe directly or via RxDB-style .$ observable alias
+const unsubscribe = query.$.subscribe((currentList) => {
   console.log('Updated Todo List:', currentList);
+});
+
+// Single-document live query
+const unsubSingle = issues.findOne('issue-101').$.subscribe((issue) => {
+  console.log('Issue updated in real-time:', issue);
 });
 
 // Clean up listener
 unsubscribe();
+unsubSingle();
 ```
 
 ---
