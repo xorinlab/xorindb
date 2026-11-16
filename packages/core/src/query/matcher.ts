@@ -1,5 +1,23 @@
 import { DocumentWithMeta, FilterQuery, QueryOptions } from '../types';
 
+export function getNestedProperty(obj: unknown, path: string): unknown {
+  if (obj === null || obj === undefined || typeof obj !== 'object') {
+    return undefined;
+  }
+  if (!path.includes('.')) {
+    return (obj as Record<string, unknown>)[path];
+  }
+  const parts = path.split('.');
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
 function evaluateFieldCondition(docValue: unknown, condition: unknown): boolean {
   if (condition !== null && typeof condition === 'object' && !Array.isArray(condition)) {
     const cond = condition as Record<string, unknown>;
@@ -64,8 +82,8 @@ export function matchQuery<T>(doc: DocumentWithMeta<T>, filter?: FilterQuery<T>)
       continue;
     }
 
-    // Standard field condition
-    const docValue = (doc as Record<string, unknown>)[key];
+    // Standard or nested dot-notation field condition
+    const docValue = getNestedProperty(doc, key);
     if (!evaluateFieldCondition(docValue, condition)) {
       return false;
     }
@@ -81,12 +99,12 @@ export function applySortAndPagination<T>(
   let result = [...docs];
 
   if (options?.sort) {
-    const [sortKey, sortDir] = Object.entries(options.sort)[0] as [keyof T, string | number];
+    const [sortKey, sortDir] = Object.entries(options.sort)[0] as [string, string | number];
     const isAsc = sortDir === 'asc' || sortDir === 1;
 
     result.sort((a, b) => {
-      const valA = (a as Record<keyof T, unknown>)[sortKey];
-      const valB = (b as Record<keyof T, unknown>)[sortKey];
+      const valA = getNestedProperty(a, sortKey) as string | number | undefined | null;
+      const valB = getNestedProperty(b, sortKey) as string | number | undefined | null;
 
       if (valA === valB) return 0;
       if (valA === undefined || valA === null) return isAsc ? -1 : 1;

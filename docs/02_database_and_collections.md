@@ -200,3 +200,27 @@ const nonThreeRating = await todos.find({
   rating: { $not: { $eq: 3 } }
 }).exec();
 ```
+
+---
+
+### Nested Object Dot-Notation (`'user.profile.name'`)
+XorinDB supports deep dot-notation paths in both query filters and sort definitions without requiring schema flattening:
+
+```typescript
+// Query by nested child properties
+const engineersInSF = await users.find({
+  'department.code': 'ENG',
+  'department.location.city': 'San Francisco'
+}).exec();
+
+// Combine dot-notation with comparison operators
+const seniorStaff = await users.find({
+  'metrics.yearsOfExperience': { $gte: 5 }
+}).exec();
+
+// Sort by deeply nested properties
+const sortedByBuilding = await users.find(
+  { 'department.code': 'ENG' },
+  { sort: { 'department.location.building': 'asc' } }
+).exec();
+```

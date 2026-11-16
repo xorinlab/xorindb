@@ -34,7 +34,7 @@ export type FilterQuery<T> = {
 };
 
 export interface QueryOptions<T> {
-  sort?: { [P in keyof T]?: 'asc' | 'desc' | 1 | -1 };
+  sort?: { [P in keyof T]?: 'asc' | 'desc' | 1 | -1 } & { [key: string]: 'asc' | 'desc' | 1 | -1 };
   limit?: number;
   skip?: number;
 }
