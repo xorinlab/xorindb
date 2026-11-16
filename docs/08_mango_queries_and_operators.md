@@ -226,6 +226,22 @@ const digitalHolidayOrders = await orders.find()
   .where('items').elemMatch({ price: { $gte: 500 } })
   .exec();
 
+### Real-World Multi-Field & Multi-Operator Fluent Chaining Example:
+```typescript
+// Complex pipeline combining equality, range, regex, set, existence and nested dot-notation:
+const results = await inventory.find()
+  .where('category').eq('laptops')
+  .where('price').gte(1500).lte(3000)
+  .where('stock').gt(0)
+  .where('warehouse.city').in(['San Jose', 'Seattle'])
+  .where('name').regex('macbook', 'i')
+  .where('tags').in(['pro'])
+  .where('specs.weightKg').exists(true)
+  .sort({ price: 'desc' })
+  .limit(5)
+  .exec();
+```
+
 // Works seamlessly on single-doc queries
 const singleItem = await products.findOne()
   .where('rating').gte(4.5)

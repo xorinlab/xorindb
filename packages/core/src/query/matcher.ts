@@ -47,8 +47,22 @@ function evaluateFieldCondition(docValue: unknown, condition: unknown): boolean 
     if ('$gte' in cond && !(typeof docValue === typeof cond.$gte && (docValue as number) >= (cond.$gte as number))) return false;
     if ('$lt' in cond && !(typeof docValue === typeof cond.$lt && (docValue as number) < (cond.$lt as number))) return false;
     if ('$lte' in cond && !(typeof docValue === typeof cond.$lte && (docValue as number) <= (cond.$lte as number))) return false;
-    if ('$in' in cond && Array.isArray(cond.$in) && !cond.$in.includes(docValue)) return false;
-    if ('$nin' in cond && Array.isArray(cond.$nin) && cond.$nin.includes(docValue)) return false;
+    if ('$in' in cond && Array.isArray(cond.$in)) {
+      if (Array.isArray(docValue)) {
+        const matchesAny = cond.$in.some(target => docValue.includes(target));
+        if (!matchesAny) return false;
+      } else {
+        if (!cond.$in.includes(docValue)) return false;
+      }
+    }
+    if ('$nin' in cond && Array.isArray(cond.$nin)) {
+      if (Array.isArray(docValue)) {
+        const matchesAny = cond.$nin.some(target => docValue.includes(target));
+        if (matchesAny) return false;
+      } else {
+        if (cond.$nin.includes(docValue)) return false;
+      }
+    }
     if ('$regex' in cond) {
       if (typeof docValue !== 'string') return false;
       const regexVal = cond.$regex;
