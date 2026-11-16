@@ -19,6 +19,10 @@ export function getNestedProperty(obj: unknown, path: string): unknown {
 }
 
 function evaluateFieldCondition(docValue: unknown, condition: unknown): boolean {
+  if (condition instanceof RegExp) {
+    return typeof docValue === 'string' && condition.test(docValue);
+  }
+
   if (condition !== null && typeof condition === 'object' && !Array.isArray(condition)) {
     const cond = condition as Record<string, unknown>;
     if ('$eq' in cond && docValue !== cond.$eq) return false;
@@ -29,6 +33,13 @@ function evaluateFieldCondition(docValue: unknown, condition: unknown): boolean 
     if ('$lte' in cond && !(typeof docValue === typeof cond.$lte && (docValue as number) <= (cond.$lte as number))) return false;
     if ('$in' in cond && Array.isArray(cond.$in) && !cond.$in.includes(docValue)) return false;
     if ('$nin' in cond && Array.isArray(cond.$nin) && cond.$nin.includes(docValue)) return false;
+    if ('$regex' in cond) {
+      if (typeof docValue !== 'string') return false;
+      const regexVal = cond.$regex;
+      const flags = typeof cond.$options === 'string' ? cond.$options : undefined;
+      const re = regexVal instanceof RegExp ? regexVal : new RegExp(String(regexVal), flags);
+      if (!re.test(docValue)) return false;
+    }
     if ('$not' in cond && evaluateFieldCondition(docValue, cond.$not)) return false;
     return true;
   }

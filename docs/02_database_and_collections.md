@@ -224,3 +224,30 @@ const sortedByBuilding = await users.find(
   { sort: { 'department.location.building': 'asc' } }
 ).exec();
 ```
+
+---
+
+### Regular Expressions (`$regex`) & Pattern Matching
+Search and filter strings using native JavaScript `RegExp` instances or MongoDB-style `$regex` strings with `$options`:
+
+```typescript
+// 1. Direct RegExp instance
+const reactArticles = await articles.find({
+  title: /react/i
+}).exec();
+
+// 2. Mango-style $regex string with flags ($options)
+const prefixMatch = await articles.find({
+  title: { $regex: '^xorin', $options: 'i' }
+}).exec();
+
+// 3. Nested property regex search
+const devAuthors = await articles.find({
+  'author.username': { $regex: '^dev_' }
+}).exec();
+
+// 4. Combined with logical and inverted operators
+const nonBeta = await articles.find({
+  title: { $not: { $regex: /beta/i } }
+}).exec();
+```

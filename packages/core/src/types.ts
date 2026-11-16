@@ -14,7 +14,7 @@ export type DocumentWithMeta<T> = T & {
 };
 
 export type FilterQuery<T> = {
-  [P in keyof T]?: T[P] | {
+  [P in keyof T]?: T[P] | RegExp | {
     $eq?: unknown;
     $ne?: unknown;
     $gt?: number | string;
@@ -24,6 +24,8 @@ export type FilterQuery<T> = {
     $in?: unknown[];
     $nin?: unknown[];
     $not?: unknown;
+    $regex?: string | RegExp;
+    $options?: string;
   };
 } & {
   $and?: FilterQuery<T>[];
