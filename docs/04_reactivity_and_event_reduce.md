@@ -27,7 +27,27 @@ unsubSingle();
 
 ---
 
-## 2. EventReduce Query Optimization
+## 2. Query Result-Set Mutations (`update` & `remove`)
+You can mutate or delete documents directly matching a query result set in bulk:
+
+```typescript
+// Bulk update all matching documents
+const updated = await issues.find({ status: 'todo' }).update({
+  status: 'in_progress',
+  priority: 2
+});
+
+// Bulk remove all matching documents (soft-delete with tombstone)
+const removed = await issues.find({ status: 'archived' }).remove();
+
+// Single document query update/remove
+await issues.findOne('issue-101').update({ priority: 5 });
+await issues.findOne('issue-101').remove();
+```
+
+---
+
+## 3. EventReduce Query Optimization
 Traditional reactive query engines re-run complete storage scans on every database write. XorinDB implements the **EventReduce** algorithm to optimize UI responsiveness and battery efficiency:
 
 ### EventReduce Decision Flow:
@@ -42,7 +62,7 @@ Traditional reactive query engines re-run complete storage scans on every databa
 
 ---
 
-## 3. Cross-Tab Reactivity
+## 4. Cross-Tab Reactivity
 XorinDB utilizes native browser `BroadcastChannel` instances (`xorindb_${dbName}`). When tab A performs a mutation:
 1. Tab A writes to IndexedDB and emits an event.
 2. Event is broadcast across open browser windows.

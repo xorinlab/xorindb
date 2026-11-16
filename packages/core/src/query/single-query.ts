@@ -37,6 +37,25 @@ export class SingleDocQuery<T extends BaseDocument> {
     return list.length > 0 ? list[0] : null;
   }
 
+  /**
+   * Updates the single matched document with the given patch.
+   */
+  async update(patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<DocumentWithMeta<T> | null> {
+    const doc = await this.exec();
+    if (!doc) return null;
+    return this.collection.update(doc.id, patch);
+  }
+
+  /**
+   * Removes the single matched document.
+   */
+  async remove(hardDelete: boolean = false): Promise<DocumentWithMeta<T> | null> {
+    const doc = await this.exec();
+    if (!doc) return null;
+    await this.collection.delete(doc.id, hardDelete);
+    return doc;
+  }
+
   subscribe(callback: SingleDocSubscriber<T>): () => void {
     return this.query.subscribe((docs) => {
       callback(docs.length > 0 ? docs[0] : null);

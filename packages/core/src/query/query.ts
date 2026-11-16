@@ -79,6 +79,34 @@ export class Query<T extends BaseDocument> {
     return list.length;
   }
 
+  /**
+   * Updates all documents matched by the query with the given patch.
+   * Returns the list of updated documents.
+   */
+  async update(patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<DocumentWithMeta<T>[]> {
+    const matched = await this.exec();
+    const updatedDocs: DocumentWithMeta<T>[] = [];
+
+    for (const doc of matched) {
+      const updated = await this.collection.update(doc.id, patch);
+      updatedDocs.push(updated);
+    }
+
+    return updatedDocs;
+  }
+
+  /**
+   * Deletes all documents matched by the query.
+   * Returns the list of deleted document IDs.
+   */
+  async remove(hardDelete: boolean = false): Promise<DocumentWithMeta<T>[]> {
+    const matched = await this.exec();
+    for (const doc of matched) {
+      await this.collection.delete(doc.id, hardDelete);
+    }
+    return matched;
+  }
+
   private notifySubscribers(data: DocumentWithMeta<T>[]): void {
     this.cachedResult = data;
     for (const sub of this.subscribers) {
