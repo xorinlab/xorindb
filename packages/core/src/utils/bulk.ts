@@ -13,7 +13,8 @@ export async function executeBulkInsert<T extends BaseDocument>(
   const validDocs: DocumentWithMeta<T>[] = [];
 
   for (const item of docs) {
-    const docObj = { ...(item as unknown as Record<string, unknown>) };
+    const preProcessed = await collection.getHooks().runPreInsert(item as any);
+    const docObj = { ...(preProcessed as unknown as Record<string, unknown>) };
     const id = collection.resolveDocumentId(docObj);
 
     if (schema) {
@@ -35,12 +36,13 @@ export async function executeBulkInsert<T extends BaseDocument>(
       continue;
     }
 
-    const doc: DocumentWithMeta<T> = {
+    let doc: DocumentWithMeta<T> = {
       ...(docObj as unknown as T),
       id,
       _deleted: false,
       _updatedAt: Date.now()
     };
+    doc = await collection.getHooks().runPreSave(doc);
     validDocs.push(doc);
     result.success.push(doc);
   }
@@ -58,6 +60,8 @@ export async function executeBulkInsert<T extends BaseDocument>(
         id: doc.id,
         doc
       });
+      await collection.getHooks().runPostInsert(doc);
+      await collection.getHooks().runPostSave(doc);
     }
   }
 
@@ -75,25 +79,28 @@ export async function executeBulkUpsert<T extends BaseDocument>(
   const events: Array<{ type: 'insert' | 'update'; doc: DocumentWithMeta<T>; previous?: DocumentWithMeta<T> }> = [];
 
   for (const item of docs) {
-    const docObj = { ...item };
+    const preProcessed = await collection.getHooks().runPreInsert(item as any);
+    const docObj = { ...preProcessed };
     const id = collection.resolveDocumentId(docObj);
 
     try {
       const existing = await collection.findById(id);
       if (!existing || existing._deleted) {
         if (schema) validateDocumentAgainstSchema(docObj, schema);
-        const newDoc: DocumentWithMeta<T> = {
+        let newDoc: DocumentWithMeta<T> = {
           ...(docObj as unknown as T),
           id,
           _deleted: false,
           _updatedAt: Date.now()
         };
+        newDoc = await collection.getHooks().runPreSave(newDoc);
         toWrite.push(newDoc);
         events.push({ type: 'insert', doc: newDoc });
         result.success.push(newDoc);
       } else {
-        const updated: DocumentWithMeta<T> = { ...existing, ...(docObj as unknown as T), id, _updatedAt: Date.now() };
+        let updated: DocumentWithMeta<T> = { ...existing, ...(docObj as unknown as T), id, _updatedAt: Date.now() };
         if (schema) validateDocumentAgainstSchema(updated as Record<string, unknown>, schema);
+        updated = await collection.getHooks().runPreSave(updated);
         toWrite.push(updated);
         events.push({ type: 'update', doc: updated, previous: existing });
         result.success.push(updated);
@@ -117,6 +124,10 @@ export async function executeBulkUpsert<T extends BaseDocument>(
         doc: evt.doc,
         previous: evt.previous
       });
+      if (evt.type === 'insert') {
+        await collection.getHooks().runPostInsert(evt.doc);
+      }
+      await collection.getHooks().runPostSave(evt.doc, evt.previous);
     }
   }
 

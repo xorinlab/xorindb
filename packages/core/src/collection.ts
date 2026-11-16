@@ -6,6 +6,7 @@ import { FieldEncryptor } from './schema/encryption';
 import { MigrationEngine, MigrationStrategies } from './schema/migration';
 import { CollectionSchema, validateDocumentAgainstSchema } from './schema/validator';
 import { SyncEngine } from './sync';
+import { HookManager } from './hooks/manager';
 import { prepareDocForStorage, restoreDocFromStorage } from './utils/pipeline';
 import { generateUUID } from './utils/uuid';
 import { executeBulkInsert, executeBulkUpsert } from './utils/bulk';
@@ -29,6 +30,7 @@ export class Collection<T extends BaseDocument> {
   private migrationStrategies?: MigrationStrategies;
   private keyCompressor: KeyCompressor<T>;
   private fieldEncryptor: FieldEncryptor<T>;
+  private hooks: HookManager<T> = new HookManager<T>();
   private syncEngine: SyncEngine<T> | null = null;
   private migrationPromise: Promise<void> | null = null;
 
@@ -70,6 +72,7 @@ export class Collection<T extends BaseDocument> {
   getEmitter(): EventEmitter { return this.emitter; }
   getKeyCompressor(): KeyCompressor<T> { return this.keyCompressor; }
   getFieldEncryptor(): FieldEncryptor<T> { return this.fieldEncryptor; }
+  getHooks(): HookManager<T> { return this.hooks; }
   getPrimaryKeyField(): string { return (this.schema?.primaryKey as string) || 'id'; }
 
   resolveDocumentId(data: Record<string, unknown>): string {
@@ -82,23 +85,34 @@ export class Collection<T extends BaseDocument> {
     return generated;
   }
 
+  preInsert(fn: import('./hooks/manager').PreInsertHook<T>): this { this.hooks.preInsert(fn); return this; }
+  postInsert(fn: import('./hooks/manager').PostInsertHook<T>): this { this.hooks.postInsert(fn); return this; }
+  preSave(fn: import('./hooks/manager').PreSaveHook<T>): this { this.hooks.preSave(fn); return this; }
+  postSave(fn: import('./hooks/manager').PostSaveHook<T>): this { this.hooks.postSave(fn); return this; }
+  preRemove(fn: import('./hooks/manager').PreRemoveHook<T>): this { this.hooks.preRemove(fn); return this; }
+  postRemove(fn: import('./hooks/manager').PostRemoveHook<T>): this { this.hooks.postRemove(fn); return this; }
+
   async insert(data: Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }): Promise<DocumentWithMeta<T>> {
     await this.ensureMigrated();
-    if (this.schema) validateDocumentAgainstSchema(data as Record<string, unknown>, this.schema);
+    const processed = await this.hooks.runPreInsert(data as any);
+    if (this.schema) validateDocumentAgainstSchema(processed as Record<string, unknown>, this.schema);
 
-    const docObj = { ...(data as unknown as Record<string, unknown>) };
+    const docObj = { ...(processed as unknown as Record<string, unknown>) };
     const id = this.resolveDocumentId(docObj);
-    const doc: DocumentWithMeta<T> = {
+    let doc: DocumentWithMeta<T> = {
       ...(docObj as unknown as T),
       id,
       _deleted: false,
       _updatedAt: Date.now()
     };
 
+    doc = await this.hooks.runPreSave(doc);
     const storageDoc = await prepareDocForStorage(doc, this.fieldEncryptor, this.keyCompressor);
     await this.storage.put(this.name, storageDoc);
 
     this.emitter.emit(this.name, { collection: this.name, type: 'insert', id, doc });
+    await this.hooks.runPostInsert(doc);
+    await this.hooks.runPostSave(doc);
     return doc;
   }
 
@@ -148,13 +162,15 @@ export class Collection<T extends BaseDocument> {
       throw new Error(`Document with id "${id}" does not exist in collection "${this.name}".`);
     }
 
-    const updated: DocumentWithMeta<T> = { ...existing, ...patch, _updatedAt: Date.now() };
+    let updated: DocumentWithMeta<T> = { ...existing, ...patch, _updatedAt: Date.now() };
     if (this.schema) validateDocumentAgainstSchema(updated as Record<string, unknown>, this.schema);
 
+    updated = await this.hooks.runPreSave(updated);
     const storageUpdated = await prepareDocForStorage(updated, this.fieldEncryptor, this.keyCompressor);
     await this.storage.put(this.name, storageUpdated);
 
     this.emitter.emit(this.name, { collection: this.name, type: 'update', id, doc: updated, previous: existing });
+    await this.hooks.runPostSave(updated, existing);
     return updated;
   }
 
@@ -212,6 +228,8 @@ export class Collection<T extends BaseDocument> {
     const existing = await this.findById(id);
     if (!existing) return;
 
+    await this.hooks.runPreRemove(id, existing);
+
     if (hardDelete) {
       await this.storage.delete(this.name, id);
     } else {
@@ -221,6 +239,7 @@ export class Collection<T extends BaseDocument> {
     }
 
     this.emitter.emit(this.name, { collection: this.name, type: 'delete', id, previous: existing });
+    await this.hooks.runPostRemove(id, existing);
   }
 
   sync(options: SyncOptions<T>): SyncEngine<T> {
