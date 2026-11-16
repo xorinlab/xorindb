@@ -34,6 +34,17 @@ export interface QueryOptions<T> {
 
 export type ChangeType = 'insert' | 'update' | 'delete';
 
+export interface BulkWriteError<T> {
+  id?: PrimaryKey;
+  document: Partial<T>;
+  error: Error;
+}
+
+export interface BulkWriteResult<T> {
+  success: DocumentWithMeta<T>[];
+  error: BulkWriteError<T>[];
+}
+
 export interface CollectionOptions<T> {
   schema?: import('./schema/validator').CollectionSchema<T>;
   migrationStrategies?: import('./schema/migration').MigrationStrategies;

@@ -7,8 +7,10 @@ import { CollectionSchema, validateDocumentAgainstSchema } from './schema/valida
 import { SyncEngine } from './sync';
 import { prepareDocForStorage, restoreDocFromStorage } from './utils/pipeline';
 import { generateUUID } from './utils/uuid';
+import { executeBulkInsert, executeBulkUpsert } from './utils/bulk';
 import {
   BaseDocument,
+  BulkWriteResult,
   CollectionOptions,
   DocumentWithMeta,
   FilterQuery,
@@ -69,7 +71,7 @@ export class Collection<T extends BaseDocument> {
   getFieldEncryptor(): FieldEncryptor<T> { return this.fieldEncryptor; }
   getPrimaryKeyField(): string { return (this.schema?.primaryKey as string) || 'id'; }
 
-  private resolveDocumentId(data: Record<string, unknown>): string {
+  resolveDocumentId(data: Record<string, unknown>): string {
     const pkField = this.getPrimaryKeyField();
     const customVal = data[pkField];
     if (customVal !== undefined && customVal !== null) return String(customVal);
@@ -100,26 +102,25 @@ export class Collection<T extends BaseDocument> {
   }
 
   async insertMany(docs: Array<Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }>): Promise<DocumentWithMeta<T>[]> {
-    await this.ensureMigrated();
-    if (this.schema) {
-      for (const item of docs) validateDocumentAgainstSchema(item as Record<string, unknown>, this.schema);
+    const res = await this.bulkInsert(docs);
+    if (res.error.length > 0) {
+      throw res.error[0].error;
     }
+    return res.success;
+  }
 
-    const prepared: DocumentWithMeta<T>[] = docs.map((item) => {
-      const docObj = { ...(item as unknown as Record<string, unknown>) };
-      const id = this.resolveDocumentId(docObj);
-      return { ...(docObj as unknown as T), id, _deleted: false, _updatedAt: Date.now() };
-    });
+  /**
+   * Bulk inserts documents and returns detailed success and error items.
+   */
+  async bulkInsert(docs: Array<Omit<T, 'id' | '_deleted' | '_updatedAt'> & { id?: PrimaryKey }>): Promise<BulkWriteResult<T>> {
+    return executeBulkInsert<T>(this, docs);
+  }
 
-    const storageDocs = await Promise.all(
-      prepared.map(d => prepareDocForStorage(d, this.fieldEncryptor, this.keyCompressor))
-    );
-    await this.storage.putBatch(this.name, storageDocs);
-
-    for (const doc of prepared) {
-      this.emitter.emit(this.name, { collection: this.name, type: 'insert', id: doc.id, doc });
-    }
-    return prepared;
+  /**
+   * Bulk upserts documents (insert if absent, update if exists) and returns detailed results.
+   */
+  async bulkUpsert(docs: Array<Partial<T> & { id?: PrimaryKey; [key: string]: unknown }>): Promise<BulkWriteResult<T>> {
+    return executeBulkUpsert<T>(this, docs);
   }
 
   async findById(id: PrimaryKey): Promise<DocumentWithMeta<T> | null> {
