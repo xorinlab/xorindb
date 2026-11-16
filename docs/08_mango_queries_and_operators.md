@@ -178,6 +178,19 @@ const premiumItems = await products.find()
   .limit(10)
   .exec();
 
+### Chained Comparison Operators Reference:
+- `.eq(value)` / `.equals(value)` : Matches documents where field equals value.
+- `.ne(value)` : Matches documents where field is not equal to value.
+- `.gt(value)` : Matches values strictly greater than value.
+- `.gte(value)` : Matches values greater than or equal to value.
+- `.lt(value)` : Matches values strictly less than value.
+- `.lte(value)` : Matches values less than or equal to value.
+
+// Closed interval example (20 <= temperature <= 30)
+const comfortable = await sensors.find()
+  .where('temperature').gte(20).lte(30)
+  .exec();
+
 // Works seamlessly on single-doc queries
 const singleItem = await products.findOne()
   .where('rating').gte(4.5)
