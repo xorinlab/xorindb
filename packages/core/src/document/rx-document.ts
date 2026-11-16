@@ -129,6 +129,35 @@ export class RxDocument<T extends BaseDocument> {
     return this;
   }
 
+  /**
+   * Modifies the document using a mutator function.
+   * Fetches fresh state and applies mutation to prevent conflicts.
+   */
+  async modify(mutator: (docData: T) => Partial<T> | Promise<Partial<T>>): Promise<RxDocument<T>> {
+    if (this._deleted) {
+      throw new Error(`Cannot modify deleted document with id "${this.id}".`);
+    }
+
+    const fresh = await this._collection.findById(this.id);
+    if (!fresh || fresh._deleted) {
+      throw new Error(`Document with id "${this.id}" not found in storage.`);
+    }
+
+    const mutableCopy = JSON.parse(JSON.stringify(fresh)) as T;
+    const patch = await mutator(mutableCopy);
+
+    const updated = await this._collection.update(this.id, patch as any);
+    this._data = { ...updated };
+    return this;
+  }
+
+  /**
+   * Incrementally modifies the document sequentially. Alias to modify.
+   */
+  async incrementalModify(mutator: (docData: T) => Partial<T> | Promise<Partial<T>>): Promise<RxDocument<T>> {
+    return this.modify(mutator);
+  }
+
   destroy(): void {
     if (this._unbind) {
       this._unbind();

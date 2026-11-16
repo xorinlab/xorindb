@@ -117,4 +117,38 @@ describe('RxDocument Instance & Reactive Getters', () => {
     expect(fetched?.done).toBe(true);
     expect(fetched?.priority).toBe(3);
   });
+
+  it('should support modify() and incrementalModify() with mutator function', async () => {
+    const counter = db.collection<{ id?: string; count: number; tags: string[] }>('counter');
+    const raw = await counter.insert({ id: 'c1', count: 10, tags: ['initial'] });
+
+    const doc = createRxDocument(counter, raw);
+
+    // Synchronous mutator via modify()
+    await doc.modify((data) => {
+      data.count += 5;
+      data.tags.push('step1');
+      return data;
+    });
+
+    expect(doc.count).toBe(15);
+    expect(doc.tags).toEqual(['initial', 'step1']);
+
+    // Asynchronous mutator via incrementalModify()
+    await doc.incrementalModify(async (data) => {
+      await new Promise(r => setTimeout(r, 10));
+      return {
+        ...data,
+        count: data.count * 2,
+        tags: [...data.tags, 'step2']
+      };
+    });
+
+    expect(doc.count).toBe(30);
+    expect(doc.tags).toEqual(['initial', 'step1', 'step2']);
+
+    const inStorage = await counter.findById('c1');
+    expect(inStorage?.count).toBe(30);
+    expect(inStorage?.tags).toEqual(['initial', 'step1', 'step2']);
+  });
 });
