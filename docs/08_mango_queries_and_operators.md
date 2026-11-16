@@ -186,9 +186,24 @@ const premiumItems = await products.find()
 - `.lt(value)` : Matches values strictly less than value.
 - `.lte(value)` : Matches values less than or equal to value.
 
+### Chained Set & Array Methods Reference:
+- `.in(array)` : Matches if value exists in array (or array field contains at least one match).
+- `.nin(array)` : Matches if value does not exist in array.
+- `.all(array)` : Matches if array field contains all elements specified.
+- `.size(length)` : Matches if array field has the exact length.
+- `.elemMatch(condition)` : Matches if at least one array element satisfies object or operator conditions.
+
 // Closed interval example (20 <= temperature <= 30)
 const comfortable = await sensors.find()
   .where('temperature').gte(20).lte(30)
+  .exec();
+
+// Set & Array fluent example
+const digitalHolidayOrders = await orders.find()
+  .where('channel').in(['web', 'mobile'])
+  .where('tags').all(['electronics', 'holiday'])
+  .where('items').size(2)
+  .where('items').elemMatch({ price: { $gte: 500 } })
   .exec();
 
 // Works seamlessly on single-doc queries
