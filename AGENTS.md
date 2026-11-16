@@ -32,7 +32,7 @@ xorindb/
 │   ├── 04_reactivity_and_event_reduce.md # Live queries, EventReduce algorithm, multi-tab
 │   ├── 05_http_replication_and_sync.md # Pull/Push, checkpoints, SSE live stream
 │   ├── 06_framework_integrations.md # React 18/19, Vue 3, Next.js SSR, Svelte
-│   ├── 07_rx_document.md      # RxDocument proxy, mutations, getters, JSON export
+│   ├── 07_xorin_document.md   # XorinDocument proxy, mutations, getters, JSON export
 │   └── 08_mango_queries_and_operators.md # Mango syntax, $or, $regex, dot-notation, array ops
 ├── packages/
 │   └── core/                  # Main package published as 'xorindb'
@@ -61,7 +61,7 @@ xorindb/
 ## 3. Core Architectural Rules (CRITICAL)
 
 1. **Zero External Dependencies in Core**:
-   The core database runtime must remain featherweight (<15KB minified) and free from heavy third-party packages (no RxJS, no external validation or crypto packages). Rely strictly on web standards: `IndexedDB`, `BroadcastChannel`, `crypto.subtle`, `navigator.locks`.
+   The core database runtime must remain featherweight (<15KB minified) and free from heavy third-party packages (no external reactive stream packages, no validation or crypto libraries). Rely strictly on web standards: `IndexedDB`, `BroadcastChannel`, `crypto.subtle`, `navigator.locks`.
 2. **SSR Safety**:
    Never assume `window` or `indexedDB` exist at runtime. If absent, transparently fall back to `MemoryStorageAdapter` without throwing errors.
 3. **Data Integrity & Sync Invariants**:

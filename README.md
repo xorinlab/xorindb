@@ -1,8 +1,6 @@
 # XorinDB 🚀
 
-A lightweight, reactive, zero-config local-first database designed for modern JavaScript applications (React, Next.js, Vue, Nuxt, Svelte, Node.js).
-
-Inspired by RxDB, but engineered to be framework-agnostic, lightweight, and hassle-free.
+A lightweight, reactive, zero-config local-first database engineered to be framework-agnostic, modular, and hassle-free.
 
 ## Key Features
 

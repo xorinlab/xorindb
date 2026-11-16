@@ -34,7 +34,8 @@
     "indexeddb",
     "reactive",
     "sync",
-    "rxdb-alternative"
+    "nosql",
+    "document-store"
   ],
   "author": "",
   "license": "MIT",

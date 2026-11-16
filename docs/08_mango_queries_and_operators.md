@@ -165,7 +165,7 @@ const topScorers = await players.find({
 ---
 
 ## 6. Fluent Query Builder (`.where(field)...`)
-Instead of passing raw Mango JSON objects, XorinDB supports fluent, chainable method syntax inspired by RxDB Query Builder:
+Instead of passing raw Mango JSON objects, XorinDB supports fluent, chainable method syntax:
 
 ```typescript
 // Chain range and equality operators on multiple fields

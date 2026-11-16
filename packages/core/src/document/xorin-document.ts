@@ -1,12 +1,12 @@
 import type { Collection } from '../collection';
 import type { BaseDocument, ChangeEvent, DocumentWithMeta, PrimaryKey } from '../types';
 
-export class RxDocument<T extends BaseDocument> {
+export class XorinDocument<T extends BaseDocument> {
   private _collection: Collection<T>;
   private _data: DocumentWithMeta<T>;
   private _deleted: boolean = false;
   private _unbind?: () => void;
-  private _subscribers: Set<(doc: RxDocument<T>) => void> = new Set();
+  private _subscribers: Set<(doc: XorinDocument<T>) => void> = new Set();
   private _fieldSubscribers: Map<string, Set<(val: any) => void>> = new Map();
 
   constructor(collection: Collection<T>, data: DocumentWithMeta<T>) {
@@ -91,9 +91,9 @@ export class RxDocument<T extends BaseDocument> {
     };
   }
 
-  get $(): { subscribe: (callback: (doc: RxDocument<T>) => void) => () => void } {
+  get $(): { subscribe: (callback: (doc: XorinDocument<T>) => void) => () => void } {
     return {
-      subscribe: (callback: (doc: RxDocument<T>) => void) => {
+      subscribe: (callback: (doc: XorinDocument<T>) => void) => {
         this._subscribers.add(callback);
         // Immediate emit of current document
         callback(this);
@@ -109,7 +109,7 @@ export class RxDocument<T extends BaseDocument> {
    * Returns a deep-cloned plain JavaScript object.
    * If withMetaFields is true (default), includes id, _deleted, and _updatedAt.
    * If false, strips internal meta fields.
-   * Freezes the returned object in accordance with RxDB immutable toJSON specification.
+   * Freezes the returned object in accordance with immutable toJSON specification.
    */
   toJSON(withMetaFields: boolean = true): DocumentWithMeta<T> | T {
     const copy = JSON.parse(JSON.stringify(this._data));
@@ -137,7 +137,7 @@ export class RxDocument<T extends BaseDocument> {
   /**
    * Patches the document with partial changes in a queue-safe incremental manner.
    */
-  async incrementalPatch(patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<RxDocument<T>> {
+  async incrementalPatch(patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<XorinDocument<T>> {
     if (this._deleted) {
       throw new Error(`Cannot patch deleted document with id "${this.id}".`);
     }
@@ -151,7 +151,7 @@ export class RxDocument<T extends BaseDocument> {
    * Modifies the document using a mutator function.
    * Fetches fresh state and applies mutation to prevent conflicts.
    */
-  async modify(mutator: (docData: T) => Partial<T> | Promise<Partial<T>>): Promise<RxDocument<T>> {
+  async modify(mutator: (docData: T) => Partial<T> | Promise<Partial<T>>): Promise<XorinDocument<T>> {
     if (this._deleted) {
       throw new Error(`Cannot modify deleted document with id "${this.id}".`);
     }
@@ -172,14 +172,14 @@ export class RxDocument<T extends BaseDocument> {
   /**
    * Incrementally modifies the document sequentially. Alias to modify.
    */
-  async incrementalModify(mutator: (docData: T) => Partial<T> | Promise<Partial<T>>): Promise<RxDocument<T>> {
+  async incrementalModify(mutator: (docData: T) => Partial<T> | Promise<Partial<T>>): Promise<XorinDocument<T>> {
     return this.modify(mutator);
   }
 
   /**
    * Deletes the document from the collection (soft-delete / tombstone by default).
    */
-  async remove(hardDelete: boolean = false): Promise<RxDocument<T>> {
+  async remove(hardDelete: boolean = false): Promise<XorinDocument<T>> {
     if (this._deleted) {
       return this;
     }
@@ -193,7 +193,7 @@ export class RxDocument<T extends BaseDocument> {
   /**
    * Incrementally removes the document sequentially. Alias to remove.
    */
-  async incrementalRemove(hardDelete: boolean = false): Promise<RxDocument<T>> {
+  async incrementalRemove(hardDelete: boolean = false): Promise<XorinDocument<T>> {
     return this.remove(hardDelete);
   }
 
@@ -218,11 +218,11 @@ export class RxDocument<T extends BaseDocument> {
   }
 }
 
-export function createRxDocument<T extends BaseDocument>(
+export function createXorinDocument<T extends BaseDocument>(
   collection: Collection<T>,
   data: DocumentWithMeta<T>
-): RxDocument<T> & T {
-  const docInstance = new RxDocument<T>(collection, data);
+): XorinDocument<T> & T {
+  const docInstance = new XorinDocument<T>(collection, data);
   return new Proxy(docInstance, {
     get(target: any, prop: string | symbol) {
       if (prop in target || typeof prop === 'symbol') {
@@ -230,5 +230,5 @@ export function createRxDocument<T extends BaseDocument>(
       }
       return target._data[prop];
     }
-  }) as RxDocument<T> & T;
+  }) as XorinDocument<T> & T;
 }

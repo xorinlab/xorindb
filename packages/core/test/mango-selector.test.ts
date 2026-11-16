@@ -23,7 +23,7 @@ describe('Mango Query Selector Compatibility', () => {
       { id: 'p5', player: 'Eve', score: 90, level: 1 },
     ]);
 
-    // RxDB Mango-style query object
+    // Mango-style query object
     const results = await scores.find({
       selector: {
         level: { $eq: 2 },

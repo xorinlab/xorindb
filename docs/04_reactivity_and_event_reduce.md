@@ -10,7 +10,7 @@ const query = issues.find(
   { sort: { priority: 'desc' } }
 );
 
-// Subscribe directly or via RxDB-style .$ observable alias
+// Subscribe directly or via .$ observable alias
 const unsubscribe = query.$.subscribe((currentList) => {
   console.log('Updated Todo List:', currentList);
 });

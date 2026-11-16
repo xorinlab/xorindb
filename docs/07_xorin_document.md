@@ -1,7 +1,7 @@
-# 07. RxDocument API
+# 07. XorinDocument API
 
 ## 1. Introduction
-In XorinDB, an **`RxDocument`** is a reactive proxy wrapper around individual JSON documents. It bridges the stored document state with convenient mutation methods, field-level reactivity, and replication tombstones.
+In XorinDB, a **`XorinDocument`** is a reactive proxy wrapper around individual JSON documents. It bridges the stored document state with convenient mutation methods, field-level reactivity, and replication tombstones.
 
 ---
 
@@ -9,7 +9,7 @@ In XorinDB, an **`RxDocument`** is a reactive proxy wrapper around individual JS
 All stored document fields can be accessed directly as regular object properties or via explicit getters:
 
 ```typescript
-const doc = createRxDocument(users, rawUser);
+const doc = createXorinDocument(users, rawUser);
 
 // Direct property access via Proxy
 console.log(doc.name);
@@ -100,7 +100,7 @@ Returns a **deep-cloned, freely mutable** plain JavaScript object:
 ```typescript
 // Pure business payload without internal metadata (ready for form binding or mutations)
 const clean = doc.toMutableJSON();
-clean.name = 'New Name'; // Safe to mutate freely without affecting RxDocument
+clean.name = 'New Name'; // Safe to mutate freely without affecting XorinDocument
 
 // Includes metadata if explicitly requested
 const mutableWithMeta = doc.toMutableJSON(true);

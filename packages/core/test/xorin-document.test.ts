@@ -1,23 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { createDatabase, Database } from '../src';
-import { createRxDocument, RxDocument } from '../src/document/rx-document';
+import { createXorinDocument, XorinDocument } from '../src/document/xorin-document';
 
-describe('RxDocument Instance & Reactive Getters', () => {
+describe('XorinDocument Instance & Reactive Getters', () => {
   let db: Database;
 
   beforeEach(async () => {
     db = await createDatabase({
-      name: `test-rxdoc-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      name: `test-xdoc-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       multiTab: false,
     });
   });
 
-  it('should wrap raw document into RxDocument with proxy property access', async () => {
+  it('should wrap raw document into XorinDocument with proxy property access', async () => {
     const users = db.collection<{ id?: string; name: string; age: number }>('users');
     const raw = await users.insert({ id: 'u1', name: 'Alice', age: 25 });
 
-    const doc = createRxDocument(users, raw);
+    const doc = createXorinDocument(users, raw);
 
     expect(doc.id).toBe('u1');
     expect(doc.name).toBe('Alice');
@@ -31,7 +31,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const users = db.collection<{ id?: string; name: string; age: number }>('users');
     const raw = await users.insert({ id: 'u1', name: 'Alice', age: 25 });
 
-    const doc = createRxDocument(users, raw);
+    const doc = createXorinDocument(users, raw);
     const updates: string[] = [];
 
     const unsubscribe = doc.$.subscribe((d) => {
@@ -50,7 +50,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const users = db.collection<{ id?: string; name: string; score: number }>('users');
     const raw = await users.insert({ id: 'u1', name: 'Bob', score: 100 });
 
-    const doc = createRxDocument(users, raw);
+    const doc = createXorinDocument(users, raw);
     const scoreHistory: number[] = [];
     const nameHistory: string[] = [];
 
@@ -83,7 +83,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const users = db.collection<{ id?: string; name: string }>('users');
     const raw = await users.insert({ id: 'u1', name: 'Charlie' });
 
-    const doc = createRxDocument(users, raw);
+    const doc = createXorinDocument(users, raw);
     let deletedFlag = doc.deleted;
 
     const unsub = doc.$.subscribe((d) => {
@@ -103,7 +103,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const tasks = db.collection<{ id?: string; title: string; done: boolean; priority: number }>('tasks');
     const raw = await tasks.insert({ id: 't1', title: 'Task 1', done: false, priority: 1 });
 
-    const doc = createRxDocument(tasks, raw);
+    const doc = createXorinDocument(tasks, raw);
 
     await doc.incrementalPatch({ done: true, priority: 3 });
 
@@ -122,7 +122,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const counter = db.collection<{ id?: string; count: number; tags: string[] }>('counter');
     const raw = await counter.insert({ id: 'c1', count: 10, tags: ['initial'] });
 
-    const doc = createRxDocument(counter, raw);
+    const doc = createXorinDocument(counter, raw);
 
     // Synchronous mutator via modify()
     await doc.modify((data) => {
@@ -156,7 +156,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const items = db.collection<{ id?: string; name: string }>('items');
     const raw = await items.insert({ id: 'item1', name: 'Notebook' });
 
-    const doc = createRxDocument(items, raw);
+    const doc = createXorinDocument(items, raw);
 
     expect(doc.deleted).toBe(false);
 
@@ -176,7 +176,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
   it('should support toJSON() and toMutableJSON() with withMetaFields option and immutability', async () => {
     const users = db.collection<{ id?: string; name: string }>('users');
     const raw = await users.insert({ id: 'u1', name: 'Alice' });
-    const doc = createRxDocument(users, raw);
+    const doc = createXorinDocument(users, raw);
 
     // toJSON() returns frozen object with meta fields by default
     const jsonWithMeta = doc.toJSON() as any;
@@ -195,7 +195,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
     const mutableObj = doc.toMutableJSON() as any;
     expect(Object.isFrozen(mutableObj)).toBe(false);
     expect(mutableObj._deleted).toBeUndefined();
-    // Freely mutating should not affect RxDocument
+    // Freely mutating should not affect XorinDocument
     mutableObj.name = 'Locally Mutated';
     expect(doc.name).toBe('Alice');
 
@@ -208,7 +208,7 @@ describe('RxDocument Instance & Reactive Getters', () => {
   it('should throw error when trying to patch or modify an already deleted document', async () => {
     const todos = db.collection<{ id?: string; title: string }>('todos');
     const raw = await todos.insert({ id: 'todo1', title: 'Buy milk' });
-    const doc = createRxDocument(todos, raw);
+    const doc = createXorinDocument(todos, raw);
 
     await doc.remove();
 

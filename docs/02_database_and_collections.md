@@ -95,7 +95,7 @@ const topTask = await todos
   .sort({ priority: 'desc' })
   .exec();
 
-// RxDB-style Mango Query Object syntax
+// Mango Query Object syntax (selector, sort, skip, limit)
 const activeTodos = await todos.find({
   selector: {
     status: { $eq: 'todo' },
