@@ -2,6 +2,7 @@ export * from './types';
 export * from './database';
 export * from './collection';
 export * from './query/query';
+export * from './query/single-query';
 export * from './storage/memory';
 export * from './storage/indexeddb';
 export * from './storage/index';

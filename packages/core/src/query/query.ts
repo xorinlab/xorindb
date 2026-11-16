@@ -19,6 +19,32 @@ export class Query<T extends BaseDocument> {
     this.options = options;
   }
 
+  where(filter: FilterQuery<T>): this {
+    this.filter = { ...this.filter, ...filter };
+    return this;
+  }
+
+  sort(sortOptions: QueryOptions<T>['sort']): this {
+    this.options = { ...this.options, sort: sortOptions };
+    return this;
+  }
+
+  skip(skipCount: number): this {
+    this.options = { ...this.options, skip: skipCount };
+    return this;
+  }
+
+  limit(limitCount: number): this {
+    this.options = { ...this.options, limit: limitCount };
+    return this;
+  }
+
+  get $(): { subscribe: (callback: QuerySubscriber<T>) => () => void } {
+    return {
+      subscribe: (callback: QuerySubscriber<T>) => this.subscribe(callback)
+    };
+  }
+
   async exec(): Promise<DocumentWithMeta<T>[]> {
     await this.collection.ensureMigrated();
     const rawDocs = await this.collection.getStorage().getAll<T>(this.collection.getName());

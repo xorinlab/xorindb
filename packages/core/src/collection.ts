@@ -1,5 +1,6 @@
 import { EventEmitter } from './events/emitter';
 import { Query } from './query/query';
+import { SingleDocQuery } from './query/single-query';
 import { KeyCompressor } from './schema/compression';
 import { FieldEncryptor } from './schema/encryption';
 import { MigrationEngine, MigrationStrategies } from './schema/migration';
@@ -132,6 +133,13 @@ export class Collection<T extends BaseDocument> {
 
   find(filter?: FilterQuery<T>, options?: QueryOptions<T>): Query<T> {
     return new Query<T>(this, filter, options);
+  }
+
+  /**
+   * Find a single document by filter or primary key, returning a chainable SingleDocQuery.
+   */
+  findOne(filter?: FilterQuery<T> | PrimaryKey, options?: QueryOptions<T>): SingleDocQuery<T> {
+    return new SingleDocQuery<T>(this, filter, options);
   }
 
   async update(id: PrimaryKey, patch: Partial<Omit<T, 'id' | '_deleted' | '_updatedAt'>>): Promise<DocumentWithMeta<T>> {
