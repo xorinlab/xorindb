@@ -158,7 +158,7 @@ const addIssue = async () => {
 
 ## 4. Background Sync & Replication
 
-XorinDB follows an **Event-Driven Real-time Replication** model (similar to RxDB). Instead of inefficient interval polling, the client synchronizes via checkpoint iterations (`pull`) and real-time events (`streamUrl` / Server-Sent Events).
+XorinDB follows an **Event-Driven Real-time Replication** model. Instead of inefficient interval polling, the client synchronizes via checkpoint iterations (`pull`) and real-time events (`streamUrl` / Server-Sent Events).
 
 ### Option A: Built-in HTTP Replication
 ```typescript
