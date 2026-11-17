@@ -6,7 +6,6 @@ export class SyncEngine<T extends BaseDocument> {
   private options: SyncOptions<T>;
   private isRunning: boolean = false;
   private checkpoint: Checkpoint | null = null;
-  private intervalTimer: ReturnType<typeof setInterval> | null = null;
   private pendingPushBatch: Map<string, ChangeRow<T>> = new Map();
   private isPushing: boolean = false;
   private eventSource: EventSource | null = null;
@@ -39,14 +38,6 @@ export class SyncEngine<T extends BaseDocument> {
     if (this.options.streamUrl && typeof EventSource !== 'undefined') {
       this.initStream();
     }
-
-    // 4. Fallback interval polling
-    const interval = this.options.pullIntervalMs ?? 10000;
-    this.intervalTimer = setInterval(() => {
-      if (this.isRunning) {
-        this.pull().catch(console.error);
-      }
-    }, interval);
   }
 
   private initStream(): void {
@@ -92,10 +83,6 @@ export class SyncEngine<T extends BaseDocument> {
 
   stop(): void {
     this.isRunning = false;
-    if (this.intervalTimer) {
-      clearInterval(this.intervalTimer);
-      this.intervalTimer = null;
-    }
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;

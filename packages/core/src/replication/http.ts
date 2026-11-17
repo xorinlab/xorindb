@@ -69,7 +69,6 @@ export function replicateHttp<T extends BaseDocument>(
     pull,
     push,
     streamUrl,
-    pullIntervalMs: options.pullIntervalMs,
     conflictResolver: options.conflictResolver
   });
 }

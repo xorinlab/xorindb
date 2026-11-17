@@ -49,7 +49,7 @@ XorinDB detects server-side rendering environments where `window.indexedDB` does
 
 ---
 
-## 2. Vue 3 & Nuxt 3
+## 2. Vue & Nuxt
 
 Import and consume via `xorindb/vue`.
 

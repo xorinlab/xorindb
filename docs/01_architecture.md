@@ -41,7 +41,7 @@
 
 ## 3. Storage Adapters
 - **IndexedDBStorageAdapter**: Default for browser environments. Maps collections to native IndexedDB ObjectStores, maintaining single and compound indexes.
-- **MemoryStorageAdapter**: Safe fallback for SSR (Next.js App Router, Nuxt 3) and Node.js test runners where `window.indexedDB` is undefined.
+- **MemoryStorageAdapter**: Safe fallback for SSR (Next.js App Router, Nuxt) and Node.js test runners where `window.indexedDB` is undefined.
 
 ---
 

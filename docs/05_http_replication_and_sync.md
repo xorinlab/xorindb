@@ -39,8 +39,7 @@ const sync = replicateHttp(issues, {
     'Authorization': `Bearer ${sessionToken}`
   }),
   batchSize: 100,
-  pullStream: true,       // SSE Real-time stream
-  pullIntervalMs: 10000,  // Periodic fallback
+  pullStream: true,       // SSE Real-time stream (Event-driven)
   conflictResolver: ({ clientState, serverState }) => {
     // 3-Way Merge or Custom Business Rules
     return {

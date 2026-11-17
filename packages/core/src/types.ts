@@ -133,7 +133,6 @@ export interface HttpReplicationOptions<T> {
   headers?: Record<string, string> | (() => Promise<Record<string, string>> | Record<string, string>);
   batchSize?: number;
   pullStream?: boolean; // Default true (uses Server-Sent Events / EventSource)
-  pullIntervalMs?: number; // Fallback or periodic polling (default 10s)
   conflictResolver?: (conflict: {
     clientState: DocumentWithMeta<T>;
     serverState: DocumentWithMeta<T>;
@@ -142,7 +141,6 @@ export interface HttpReplicationOptions<T> {
 
 export interface SyncOptions<T> {
   endpoint?: string;
-  pullIntervalMs?: number;
   pull?: (checkpoint: Checkpoint | null, batchSize: number) => Promise<PullResult<T>>;
   push?: (changeRows: ChangeRow<T>[]) => Promise<Array<DocumentWithMeta<T>> | void>;
   streamUrl?: string;

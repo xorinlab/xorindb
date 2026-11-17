@@ -1,3 +1,5 @@
+ ekhane servver theke je event pathacce ta .
+
 # XorinDB 🚀
 
 A lightweight, reactive, zero-config local-first database engineered to be framework-agnostic, modular, and hassle-free.
@@ -16,9 +18,13 @@ A lightweight, reactive, zero-config local-first database engineered to be frame
 ## Installation
 
 ```bash
+bun add xorindb
+# or
 npm install xorindb
 # or
 pnpm add xorindb
+# or
+yarn add xorindb
 ```
 
 ---
@@ -109,7 +115,9 @@ export function IssueBoard() {
 
 ---
 
-## 3. Vue / Nuxt 3 Usage
+## 3. Vue / Nuxt Usage
+
+## 3. Vue / Nuxt Usage
 
 ```vue
 <script setup lang="ts">
@@ -150,15 +158,28 @@ const addIssue = async () => {
 
 ## 4. Background Sync & Replication
 
+XorinDB follows an **Event-Driven Real-time Replication** model (similar to RxDB). Instead of inefficient interval polling, the client synchronizes via checkpoint iterations (`pull`) and real-time events (`streamUrl` / Server-Sent Events).
+
+### Option A: Built-in HTTP Replication
+```typescript
+import { replicateHttp } from 'xorindb';
+
+const sync = replicateHttp(tasks, {
+  url: 'https://api.example.com/sync/tasks',
+  pullStream: true // connects to SSE stream to receive server changes in real-time
+});
+```
+
+### Option B: Custom Sync Handlers
 ```typescript
 tasks.sync({
-  pullIntervalMs: 5000,
+  streamUrl: 'https://api.example.com/sync/events', // Real-time server stream (SSE)
   pull: async (checkpoint) => {
-    const res = await fetch(`/api/sync/pull?since=${checkpoint}`);
+    const res = await fetch(`/api/sync/pull?since=${checkpoint?.updatedAt || 0}`);
     const data = await res.json();
     return {
       documents: data.documents,
-      checkpoint: data.newCheckpoint,
+      checkpoint: data.checkpoint,
     };
   },
   push: async (changes) => {
@@ -169,7 +190,6 @@ tasks.sync({
     });
   },
   conflictResolver: ({ clientState, serverState }) => {
-    // 3-way merge or custom conflict strategy
     return {
       ...clientState,
       status: serverState.status, // preserve server status
